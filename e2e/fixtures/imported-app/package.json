@@ -1,0 +1,10 @@
+{
+  "name": "imported-app",
+  "private": true,
+  "scripts": {
+    "check": "vitest run"
+  },
+  "dependencies": {
+    "react": "*"
+  }
+}
