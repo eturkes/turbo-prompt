@@ -10,6 +10,7 @@ export type SlotKind =
 export type SuggestionOrigin = 'project' | 'template' | 'recent' | 'custom'
 
 export const MAX_SELECTION_VALUE_LENGTH = 16_384
+export const MAX_SELECTION_SOURCE_LENGTH = 4_096
 
 export interface Suggestion {
   id: string
@@ -79,6 +80,7 @@ export interface ProjectScript {
 export interface ProjectInstruction {
   text: string
   source: string
+  scope: string
 }
 
 export interface ProjectLanguage {
@@ -86,6 +88,8 @@ export interface ProjectLanguage {
   count: number
   color: string
 }
+
+export type ProjectIndexPartialReason = 'limit' | 'unreadable'
 
 export interface ProjectContext {
   schemaVersion: 1
@@ -106,6 +110,7 @@ export interface ProjectContext {
   indexedAt: string
   isDemo: boolean
   truncated?: boolean
+  partialReasons?: ProjectIndexPartialReason[]
 }
 
 export interface CompileDiagnostic {
@@ -124,7 +129,10 @@ export interface CompiledPrompt {
 
 export interface RecentPrompt {
   id: string
+  fingerprint: string
   title: string
+  text: string
+  textExact: boolean
   preview: string
   templateId: string
   projectId: string

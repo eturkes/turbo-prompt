@@ -1,6 +1,7 @@
 import type {
   ProjectContext,
   ProjectFile,
+  ProjectIndexPartialReason,
   ProjectInstruction,
   ProjectLanguage,
   ProjectScript,
@@ -62,6 +63,7 @@ const ignoredSegments = new Set([
   'target',
 ])
 const secretPattern = /(^|\/)(\.env(?:\..*)?|(?:credentials?|secrets?)(?:[-_.][^/]*)?|\.npmrc|\.pypirc|\.netrc|id_(?:rsa|dsa|ecdsa|ed25519)|[^/]+\.(?:pem|p12|pfx|key))$/i
+const secretDirectoryPattern = /^(?:\.aws|\.azure|\.gnupg|\.kube|\.ssh|(?:credentials?|secrets?)(?:[-_.][^/]*)?)$/i
 
 const languagesByExtension: Record<string, { name: string; color: string }> = {
   ts: { name: 'TypeScript', color: '#4169e1' },
@@ -115,6 +117,7 @@ export function isSafeProjectPath(path: string): boolean {
     segments.some((segment) => segment === '..')
   ) return false
   if (secretPattern.test(normalized)) return false
+  if (segments.some((segment) => secretDirectoryPattern.test(segment))) return false
   return !segments.some((segment) => ignoredSegments.has(segment.toLowerCase()))
 }
 
@@ -167,6 +170,33 @@ export function compareProjectPaths(left: string, right: string): number {
   return retentionPriority(left) - retentionPriority(right) || left.localeCompare(right)
 }
 
+function evenlySample<T>(values: readonly T[], limit: number): T[] {
+  if (values.length <= limit) return [...values]
+  if (limit <= 0) return []
+  if (limit === 1) return [values[0]!]
+  return Array.from({ length: limit }, (_, index) =>
+    values[Math.round((index * (values.length - 1)) / (limit - 1))]!,
+  )
+}
+
+function representativeProjectFiles(files: ProjectFile[], limit: number): ProjectFile[] {
+  const quotas: Record<ProjectFile['kind'], number> = {
+    source: 60,
+    test: 24,
+    config: 16,
+    docs: 12,
+    other: 8,
+  }
+  const selected = new Set<string>()
+  for (const kind of Object.keys(quotas) as ProjectFile['kind'][]) {
+    const candidates = files.filter((file) => file.kind === kind)
+    for (const file of evenlySample(candidates, quotas[kind])) selected.add(file.path)
+  }
+  const remaining = files.filter((file) => !selected.has(file.path))
+  for (const file of evenlySample(remaining, limit - selected.size)) selected.add(file.path)
+  return files.filter((file) => selected.has(file.path)).slice(0, limit)
+}
+
 interface RankedFile {
   file: File
   path: string
@@ -216,23 +246,31 @@ function throwIfAborted(signal?: AbortSignal): void {
   if (signal?.aborted) throw new DOMException('Project indexing was cancelled.', 'AbortError')
 }
 
-async function safeRead(file: File, signal?: AbortSignal): Promise<string> {
+async function safeRead(
+  file: File,
+  signal?: AbortSignal,
+  onPartial?: (reason: ProjectIndexPartialReason) => void,
+): Promise<string> {
   throwIfAborted(signal)
-  if (file.size > MAX_CONFIG_BYTES) return ''
+  if (file.size > MAX_CONFIG_BYTES) {
+    onPartial?.('limit')
+    return ''
+  }
   try {
     const contents = await file.text()
     throwIfAborted(signal)
     return contents
   } catch {
+    onPartial?.('unreadable')
     return ''
   }
 }
 
 function detectPackageManager(paths: string[]): string | null {
-  if (paths.some((path) => /(^|\/)pnpm-lock\.yaml$/.test(path))) return 'pnpm'
-  if (paths.some((path) => /(^|\/)bun\.lockb?$/.test(path))) return 'bun'
-  if (paths.some((path) => /(^|\/)yarn\.lock$/.test(path))) return 'yarn'
-  if (paths.some((path) => /(^|\/)package-lock\.json$/.test(path))) return 'npm'
+  if (paths.includes('pnpm-lock.yaml')) return 'pnpm'
+  if (paths.some((path) => /^bun\.lockb?$/.test(path))) return 'bun'
+  if (paths.includes('yarn.lock')) return 'yarn'
+  if (paths.includes('package-lock.json')) return 'npm'
   return null
 }
 
@@ -249,6 +287,7 @@ export async function analyzeProjectFiles(
   input: readonly File[],
   signal?: AbortSignal,
   collectionTruncated = false,
+  collectionPartialReasons: readonly ProjectIndexPartialReason[] = [],
 ): Promise<ProjectContext> {
   const rankedFiles: RankedFile[] = []
   let safeFileCount = 0
@@ -269,10 +308,13 @@ export async function analyzeProjectFiles(
       await new Promise<void>((resolve) => setTimeout(resolve, 0))
     }
   }
-  const truncated =
-    collectionTruncated ||
-    input.length > MAX_INPUT_PATHS ||
-    safeFileCount > MAX_FILES
+  const reachedLimit = input.length > MAX_INPUT_PATHS || safeFileCount > MAX_FILES
+  const partialReasonSet = new Set<ProjectIndexPartialReason>([
+    ...collectionPartialReasons,
+    ...((reachedLimit || (collectionTruncated && !collectionPartialReasons.length))
+      ? ['limit' as const]
+      : []),
+  ])
   const accepted = rankedFiles
     .sort((left, right) => compareProjectPaths(left.path, right.path))
     .map((candidate) => candidate.file)
@@ -300,7 +342,11 @@ export async function analyzeProjectFiles(
   let scripts: ProjectScript[] = []
   let dependencies: string[] = []
   if (packageFileIndex >= 0) {
-    const contents = await safeRead(accepted[packageFileIndex]!, signal)
+    const contents = await safeRead(
+      accepted[packageFileIndex]!,
+      signal,
+      (reason) => partialReasonSet.add(reason),
+    )
     try {
       const parsed = JSON.parse(contents) as {
         name?: unknown
@@ -316,9 +362,11 @@ export async function analyzeProjectFiles(
         packageName = parsed.name
       }
       if (parsed.scripts && typeof parsed.scripts === 'object') {
-        scripts = Object.entries(parsed.scripts as Record<string, unknown>)
+        const scriptEntries = Object.entries(parsed.scripts as Record<string, unknown>)
           .filter((entry): entry is [string, string] => typeof entry[1] === 'string')
           .filter(([name]) => safeScriptNamePattern.test(name))
+        if (scriptEntries.length > 20) partialReasonSet.add('limit')
+        scripts = scriptEntries
           .slice(0, 20)
           .map(([name]) => ({
             name,
@@ -350,23 +398,53 @@ export async function analyzeProjectFiles(
     .filter(([, signals]) => signals.some((signal) => dependencies.includes(signal)))
     .map(([name]) => name)
 
-  const instructionFiles = accepted.filter((_, index) => instructionName(normalizedPaths[index]!)).slice(0, 3)
+  const instructionCandidates = accepted
+    .map((file, index) => ({ file, source: normalizedPaths[index]! }))
+    .filter(({ source }) => instructionName(source))
+  const rootInstruction = instructionCandidates.find(({ source }) => !source.includes('/'))
+  const scopedByDirectory = Array.from(
+    instructionCandidates.reduce((groups, candidate) => {
+      if (!candidate.source.includes('/')) return groups
+      const scope = candidate.source.slice(0, candidate.source.lastIndexOf('/'))
+      if (!groups.has(scope)) groups.set(scope, candidate)
+      return groups
+    }, new Map<string, (typeof instructionCandidates)[number]>()),
+    ([, candidate]) => candidate,
+  )
+  const scopedInstructionBudget = 17
+  const sampledScopedInstructions = scopedByDirectory.length <= scopedInstructionBudget
+    ? scopedByDirectory
+    : Array.from({ length: scopedInstructionBudget }, (_, index) =>
+        scopedByDirectory[
+          Math.round((index * (scopedByDirectory.length - 1)) / (scopedInstructionBudget - 1))
+        ]!,
+      )
+  const instructionFiles = [
+    ...(rootInstruction ? [rootInstruction] : []),
+    ...sampledScopedInstructions,
+  ]
   const instructionGroups = await Promise.all(
-    instructionFiles.map(async (file) => {
-      const source = pathWithoutRoot(relativePath(file), root)
-      const text = await safeRead(file, signal)
-      return text
+    instructionFiles.map(async ({ file, source }) => {
+      const scope = source.includes('/') ? source.slice(0, source.lastIndexOf('/')) : ''
+      const text = await safeRead(file, signal, (reason) => partialReasonSet.add(reason))
+      const lineBudget = scope ? 1 : 3
+      const bulletLines = text
         .split(/\r?\n/)
-        .map((line) => line.match(/^\s*[-*]\s+(.{12,180})$/)?.[1]?.trim())
+        .map((line) => line.match(/^\s*[-*]\s+(.+)$/)?.[1]?.trim())
+        .filter((line): line is string => typeof line === 'string')
+      if (bulletLines.some((line) => line.length > 180) || bulletLines.length > lineBudget) {
+        partialReasonSet.add('limit')
+      }
+      return bulletLines
         .filter(
           (line): line is string =>
-            typeof line === 'string' && !hasUnsafeTextControls(line),
+            line.length >= 12 && line.length <= 180 && !hasUnsafeTextControls(line),
         )
-        .slice(0, 3)
-        .map<ProjectInstruction>((line) => ({ text: line, source }))
+        .slice(0, lineBudget)
+        .map<ProjectInstruction>((line) => ({ text: line, source, scope }))
     }),
   )
-  const instructions = instructionGroups.flat().slice(0, 6)
+  const instructions = instructionGroups.flat().slice(0, 20)
   throwIfAborted(signal)
 
   const priority = (path: string): number => {
@@ -377,12 +455,12 @@ export async function analyzeProjectFiles(
     if (kind === 'docs') return 3
     return 4
   }
-  const projectFiles = normalizedPaths
+  const rankedProjectFiles = normalizedPaths
     .map((path) => ({ path, kind: fileKind(path) }))
     .sort((left, right) => priority(left.path) - priority(right.path) || left.path.localeCompare(right.path))
-    .slice(0, 120)
+  const projectFiles = representativeProjectFiles(rankedProjectFiles, 120)
 
-  const directories = Array.from(
+  const allDirectories = Array.from(
     new Set(
       normalizedPaths.flatMap((path) => {
         const parts = path.split('/').slice(0, -1)
@@ -392,9 +470,8 @@ export async function analyzeProjectFiles(
         return values
       }),
     ),
-  )
-    .sort()
-    .slice(0, 40)
+  ).sort()
+  const directories = evenlySample(allDirectories, 40)
   const languages = [...languageCounts.values()].sort(
     (left, right) =>
       right.count - left.count ||
@@ -402,6 +479,17 @@ export async function analyzeProjectFiles(
       left.name.localeCompare(right.name),
   )
   const topStack = [...frameworks.slice(0, 2), ...languages.slice(0, 2).map((item) => item.name)]
+  const allManifests = normalizedPaths.filter(manifestName)
+  if (
+    rankedProjectFiles.length > projectFiles.length ||
+    allDirectories.length > directories.length ||
+    allManifests.length > 20 ||
+    scopedByDirectory.length > sampledScopedInstructions.length ||
+    instructionCandidates.length > Number(Boolean(rootInstruction)) + scopedByDirectory.length ||
+    instructions.length < instructionGroups.flat().length
+  ) partialReasonSet.add('limit')
+  const partialReasons = [...partialReasonSet]
+  const truncated = collectionTruncated || reachedLimit || partialReasons.length > 0
 
   return {
     schemaVersion: 1,
@@ -409,9 +497,7 @@ export async function analyzeProjectFiles(
     name: packageName,
     rootLabel: root,
     branch: null,
-    summary: topStack.length
-      ? `${topStack.join(' + ')} project indexed locally from the selected folder.${truncated ? ' The folder scan reached its safety cap; representative high-signal files were retained.' : ''}`
-      : `Project indexed locally from the selected folder.${truncated ? ' The folder scan reached its safety cap; representative high-signal files were retained.' : ''}`,
+    summary: `${topStack.length ? `${topStack.join(' + ')} project` : 'Project'} indexed locally from the selected folder.${partialReasons.includes('limit') ? ' The safety cap was reached; representative high-signal files were retained.' : ''}${partialReasons.includes('unreadable') ? ' Unreadable paths were omitted.' : ''}`,
     fileCount: accepted.length,
     files: projectFiles,
     directories,
@@ -420,10 +506,11 @@ export async function analyzeProjectFiles(
     packageManager: detectPackageManager(normalizedPaths),
     scripts,
     instructions,
-    manifests: normalizedPaths.filter(manifestName).slice(0, 20),
+    manifests: evenlySample(allManifests, 20),
     indexedAt: new Date().toISOString(),
     isDemo: false,
     truncated,
+    ...(partialReasons.length ? { partialReasons } : {}),
   }
 }
 

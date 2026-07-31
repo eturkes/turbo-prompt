@@ -1,38 +1,51 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
+  Check,
   ChevronDown,
   ChevronsRight,
+  Clipboard,
   CloudOff,
   FolderGit2,
   GitBranch,
+  History,
 } from 'lucide-react'
+import { HistoryDialog } from './components/HistoryDialog'
 import { InspectorPanel } from './components/InspectorPanel'
 import { ProjectDialog } from './components/ProjectDialog'
 import { PromptComposer } from './components/PromptComposer'
 import { TemplateSidebar } from './components/TemplateSidebar'
 import { demoProject } from './data/demoProject'
 import { defaultTemplate, templates } from './data/templates'
-import type {
-  ProjectContext,
-  PromptTemplate,
-  PromptValues,
-  RecentPrompt,
-  SlotSelection,
+import {
+  MAX_SELECTION_SOURCE_LENGTH,
+  type ProjectContext,
+  type PromptTemplate,
+  type PromptValues,
+  type RecentPrompt,
+  type SlotSelection,
 } from './domain/types'
 import { compilePrompt } from './lib/compilePrompt'
+import {
+  buildProjectEvidencePack,
+  applyEvidenceProposals,
+  evidenceProposalStatus,
+  type EvidencePackProposal,
+} from './lib/evidencePack'
 import {
   initialValuesFor,
   isProjectSelectionStale,
 } from './lib/suggestionEngine'
-import { clearWorkspace, loadWorkspace, saveWorkspace } from './lib/storage'
+import { promptFingerprint } from './lib/promptHistory'
+import { clearWorkspace, fitWorkspaceRecents, loadWorkspace, saveWorkspace } from './lib/storage'
 
 const stored = loadWorkspace()
 const storedTemplate = templates.find((template) => template.id === stored?.templateId)
 const initialTemplate = storedTemplate ?? defaultTemplate
-const usableStored = storedTemplate ? stored : null
-const initialProject = usableStored?.project ?? demoProject
+const initialProject = stored?.project ?? demoProject
 const initialValues =
-  usableStored?.values ?? initialValuesFor(initialTemplate, initialProject)
+  storedTemplate && stored?.values
+    ? stored.values
+    : initialValuesFor(initialTemplate, initialProject)
 
 async function copyText(text: string): Promise<void> {
   if (navigator.clipboard?.writeText) {
@@ -58,28 +71,59 @@ export default function App() {
   const [template, setTemplate] = useState<PromptTemplate>(initialTemplate)
   const [values, setValues] = useState<PromptValues>(initialValues)
   const [project, setProject] = useState<ProjectContext>(initialProject)
-  const [recents, setRecents] = useState<RecentPrompt[]>(usableStored?.recents ?? [])
+  const [recents, setRecents] = useState<RecentPrompt[]>(stored?.recents ?? [])
   const [projectDialogOpen, setProjectDialogOpen] = useState(false)
+  const [historyOpen, setHistoryOpen] = useState(false)
+  const [historicalText, setHistoricalText] = useState<string | null>(null)
+  const [restoredProject, setRestoredProject] = useState<{ id: string; name: string } | null>(null)
   const [copiedText, setCopiedText] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [undoDraft, setUndoDraft] = useState<{
     template: PromptTemplate
     values: PromptValues
+    historicalText: string | null
+    restoredProject: { id: string; name: string } | null
   } | null>(null)
   const noticeTimer = useRef<number | undefined>(undefined)
   const copyTimer = useRef<number | undefined>(undefined)
   const copyOperation = useRef(0)
   const undoReturnFocus = useRef<HTMLElement | null>(null)
   const skipNextWorkspaceSave = useRef(false)
-  const compiled = useMemo(() => compilePrompt(template, values), [template, values])
+  const liveCompiled = useMemo(() => compilePrompt(template, values), [template, values])
+  const compiled = useMemo(
+    () => historicalText !== null
+      ? {
+          ...liveCompiled,
+          text: historicalText,
+          diagnostics: [],
+          filled: liveCompiled.total,
+          complete: true,
+        }
+      : liveCompiled,
+    [historicalText, liveCompiled],
+  )
+  const evidencePack = useMemo(
+    () => buildProjectEvidencePack(project, values.target),
+    [project, values.target],
+  )
   const staleSlots = useMemo(
     () =>
       template.slots.filter((slot) =>
-        isProjectSelectionStale(slot, values[slot.id], project),
+        isProjectSelectionStale(slot, values[slot.id], project, values.target),
       ),
     [project, template.slots, values],
   )
   const ready = compiled.complete && staleSlots.length === 0
+  const persistableRecents = useMemo(
+    () => fitWorkspaceRecents({
+      schemaVersion: 1,
+      templateId: template.id,
+      values,
+      project,
+      recents,
+    }),
+    [project, recents, template.id, values],
+  )
 
   useEffect(() => {
     if (skipNextWorkspaceSave.current) {
@@ -91,9 +135,9 @@ export default function App() {
       templateId: template.id,
       values,
       project,
-      recents,
+      recents: persistableRecents,
     })
-  }, [project, recents, template.id, values])
+  }, [persistableRecents, project, template.id, values])
 
   useEffect(() => () => {
     window.clearTimeout(noticeTimer.current)
@@ -103,7 +147,12 @@ export default function App() {
 
   const flash = (
     message: string,
-    undo?: { template: PromptTemplate; values: PromptValues },
+    undo?: {
+      template: PromptTemplate
+      values: PromptValues
+      historicalText: string | null
+      restoredProject: { id: string; name: string } | null
+    },
   ) => {
     window.clearTimeout(noticeTimer.current)
     setNotice(message)
@@ -131,6 +180,8 @@ export default function App() {
 
   const handleTemplate = (next: PromptTemplate) => {
     dismissNotice()
+    setHistoricalText(null)
+    setRestoredProject(null)
     setTemplate(next)
     setValues((current) => {
       const defaults = initialValuesFor(next, project)
@@ -153,20 +204,24 @@ export default function App() {
   }
 
   const handleNew = () => {
-    const previousDraft = { template, values }
+    const previousDraft = { template, values, historicalText, restoredProject }
     undoReturnFocus.current =
       document.activeElement instanceof HTMLElement ? document.activeElement : null
     setTemplate(defaultTemplate)
+    setHistoricalText(null)
+    setRestoredProject(null)
     setValues(initialValuesFor(defaultTemplate, project))
     invalidateCopy()
     flash('New prompt ready', previousDraft)
   }
 
   const handleReset = () => {
-    const previousDraft = { template, values }
+    const previousDraft = { template, values, historicalText, restoredProject }
     undoReturnFocus.current =
       document.activeElement instanceof HTMLElement ? document.activeElement : null
     setValues(initialValuesFor(template, project))
+    setHistoricalText(null)
+    setRestoredProject(null)
     invalidateCopy()
     flash('Prompt reset', previousDraft)
   }
@@ -177,6 +232,8 @@ export default function App() {
     window.clearTimeout(noticeTimer.current)
     setTemplate(undoDraft.template)
     setValues(undoDraft.values)
+    setHistoricalText(undoDraft.historicalText)
+    setRestoredProject(undoDraft.restoredProject)
     invalidateCopy()
     setUndoDraft(null)
     setNotice(null)
@@ -196,8 +253,34 @@ export default function App() {
 
   const handleValue = (slotId: string, value: SlotSelection | undefined) => {
     dismissNotice()
+    setHistoricalText(null)
+    setRestoredProject(null)
     setValues((current) => ({ ...current, [slotId]: value }))
     invalidateCopy()
+  }
+
+  const handleApplyEvidence = (proposals: EvidencePackProposal[]) => {
+    const slotIds = new Set(template.slots.map((slot) => slot.id))
+    const applicable = proposals.filter(
+      (proposal) =>
+        slotIds.has(proposal.slotId) &&
+        evidenceProposalStatus(values[proposal.slotId], proposal) === 'available',
+    )
+    if (!applicable.length) return
+
+    const previousDraft = { template, values, historicalText, restoredProject }
+    undoReturnFocus.current =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null
+    setHistoricalText(null)
+    setRestoredProject(null)
+    setValues((current) => applyEvidenceProposals(current, applicable, slotIds))
+    invalidateCopy()
+    flash(
+      applicable.length === 1
+        ? `${applicable[0]!.label} applied`
+        : `${applicable.length} project evidence suggestions applied`,
+      previousDraft,
+    )
   }
 
   const handleCopy = async () => {
@@ -218,23 +301,41 @@ export default function App() {
       text: compiled.text,
       template,
       project,
+      restoredProject,
       values,
     }
     try {
       await copyText(copiedSnapshot.text)
       if (copyOperation.current !== operation) return
       setCopiedText(copiedSnapshot.text)
+      const fingerprint = promptFingerprint(copiedSnapshot.text)
       const recent: RecentPrompt = {
-        id: `${Date.now()}`,
+        id: `${Date.now()}-${fingerprint}`,
+        fingerprint,
         title: copiedSnapshot.template.title,
+        text: copiedSnapshot.text,
+        textExact: true,
         preview: copiedSnapshot.text.slice(0, 72),
         templateId: copiedSnapshot.template.id,
-        projectId: copiedSnapshot.project.id,
-        projectName: copiedSnapshot.project.name,
+        projectId: copiedSnapshot.restoredProject?.id ?? copiedSnapshot.project.id,
+        projectName: copiedSnapshot.restoredProject?.name ?? copiedSnapshot.project.name,
         values: copiedSnapshot.values,
         createdAt: new Date().toISOString(),
       }
-      setRecents((current) => [recent, ...current.filter((item) => item.preview !== recent.preview)].slice(0, 6))
+      const nextRecents = [
+        recent,
+        ...recents.filter((item) => item.text !== recent.text),
+      ].slice(0, 20)
+      setRecents(nextRecents)
+      if (!saveWorkspace({
+        schemaVersion: 1,
+        templateId: copiedSnapshot.template.id,
+        values: copiedSnapshot.values,
+        project: copiedSnapshot.project,
+        recents: nextRecents,
+      })) {
+        flash('Copied; history is available for this session only')
+      }
       copyTimer.current = window.setTimeout(() => {
         if (copyOperation.current === operation) setCopiedText(null)
       }, 2_000)
@@ -248,10 +349,39 @@ export default function App() {
   const handleRecent = (recent: RecentPrompt) => {
     dismissNotice()
     const recentTemplate = templates.find((item) => item.id === recent.templateId)
-    if (recentTemplate) setTemplate(recentTemplate)
-    setValues(recent.values)
+    if (!recentTemplate) {
+      flash('That prompt uses a workflow that is no longer available')
+      return
+    }
+    const recentValues: PromptValues = Object.fromEntries(
+      Object.entries(recent.values).map(([slotId, selection]) => [
+        slotId,
+        selection
+          ? {
+              ...selection,
+              source: (selection.origin === 'recent'
+                ? selection.source
+                : `Prompt history · ${selection.source}`
+              ).slice(0, MAX_SELECTION_SOURCE_LENGTH),
+              origin: 'recent' as const,
+            }
+          : selection,
+      ]),
+    )
+    const restoredFromValues = compilePrompt(recentTemplate, recent.values).text
+    const workflowHasChanged = recent.textExact && restoredFromValues !== recent.text
+    setTemplate(recentTemplate)
+    setValues(recentValues)
+    setHistoricalText(workflowHasChanged ? recent.text : null)
+    setRestoredProject({ id: recent.projectId, name: recent.projectName })
     invalidateCopy()
-    if (recent.projectId !== project.id) flash(`Loaded from ${recent.projectName}; project values may need replacing`)
+    if (!recent.textExact) {
+      flash('Loaded legacy history from saved fields; wording may differ from the original copy')
+    } else if (workflowHasChanged) {
+      flash('Loaded the exact copied text; editing a field updates it to the current workflow')
+    } else if (recent.projectId !== project.id) {
+      flash(`Loaded from ${recent.projectName}; saved wording is protected`)
+    }
   }
 
   const handleProject = (nextProject: ProjectContext) => {
@@ -260,25 +390,42 @@ export default function App() {
     invalidateCopy()
     flash(
       nextProject.truncated
-        ? `${nextProject.name} indexed at the safety cap`
+        ? nextProject.partialReasons?.includes('unreadable')
+          ? nextProject.partialReasons.includes('limit')
+            ? `${nextProject.name} indexed partially; cap reached and unreadable paths omitted`
+            : `${nextProject.name} indexed with unreadable paths omitted`
+          : `${nextProject.name} indexed at the safety cap`
         : `${nextProject.name} indexed locally`,
     )
   }
 
   const handleClearWorkspace = () => {
-    skipNextWorkspaceSave.current = true
-    clearWorkspace()
+    const storageCleared = clearWorkspace()
+    skipNextWorkspaceSave.current = storageCleared
     setTemplate(defaultTemplate)
     setProject(demoProject)
     setValues(initialValuesFor(defaultTemplate, demoProject))
     setRecents([])
+    setHistoricalText(null)
+    setRestoredProject(null)
     invalidateCopy()
     setProjectDialogOpen(false)
-    flash('Saved project data and prompt history cleared')
+    flash(
+      storageCleared
+        ? 'Saved project data and prompt history cleared'
+        : 'Workspace reset; browser storage could not confirm deletion',
+    )
   }
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
+      if (event.defaultPrevented) return
+      const target = event.target
+      if (
+        target instanceof HTMLElement &&
+        (target.matches('input, textarea, select, [contenteditable="true"]') ||
+          target.closest('dialog'))
+      ) return
       const modifier = event.metaKey || event.ctrlKey
       if (modifier && event.key === 'Enter') {
         event.preventDefault()
@@ -309,8 +456,16 @@ export default function App() {
         </button>
 
         <div className="topbar-actions">
+          <button
+            className="icon-button history-trigger"
+            type="button"
+            aria-label={`Open prompt history, ${persistableRecents.length} ${persistableRecents.length === 1 ? 'entry' : 'entries'}`}
+            onClick={() => setHistoryOpen(true)}
+          >
+            <History size={17} />
+            {persistableRecents.length ? <span>{persistableRecents.length}</span> : null}
+          </button>
           <span className="local-badge"><CloudOff size={13} />Local only</span>
-          <span className="avatar" aria-label="Local workspace">ET</span>
         </div>
       </header>
 
@@ -318,7 +473,7 @@ export default function App() {
         <TemplateSidebar
           templates={templates}
           selectedId={template.id}
-          recents={recents}
+          recents={persistableRecents}
           onSelect={handleTemplate}
           onRecent={handleRecent}
           onNew={handleNew}
@@ -330,6 +485,12 @@ export default function App() {
             <span>/</span>
             <strong>{template.shortTitle}</strong>
           </div>
+          {historicalText !== null ? (
+            <div className="historical-draft-note" role="status">
+              <History size={15} aria-hidden="true" />
+              <span><strong>Copied-text snapshot.</strong> Preview and copy preserve the original; editing a field adopts the current workflow.</span>
+            </div>
+          ) : null}
           <PromptComposer
             template={template}
             values={values}
@@ -343,13 +504,21 @@ export default function App() {
           compiled={compiled}
           project={project}
           template={template}
+          values={values}
+          evidencePack={evidencePack}
           copied={copiedText === compiled.text}
           ready={ready}
           staleCount={staleSlots.length}
           scopeAnchored={Boolean(
             values.target?.origin === 'project' &&
               !template.slots.some(
-                (slot) => slot.id === 'target' && isProjectSelectionStale(slot, values.target, project),
+                (slot) => slot.id === 'target' && isProjectSelectionStale(slot, values.target, project, values.target),
+              ),
+          )}
+          contextGrounded={Boolean(
+            values.context?.origin === 'project' &&
+              !template.slots.some(
+                (slot) => slot.id === 'context' && isProjectSelectionStale(slot, values.context, project, values.target),
               ),
           )}
           verificationExplicit={Boolean(
@@ -357,11 +526,29 @@ export default function App() {
               !template.slots.some(
                 (slot) =>
                   slot.id === 'verification' &&
-                  isProjectSelectionStale(slot, values.verification, project),
+                  isProjectSelectionStale(slot, values.verification, project, values.target),
               ),
           )}
+          onApplyEvidence={handleApplyEvidence}
           onCopy={() => void handleCopy()}
         />
+      </div>
+
+      <div className="mobile-action-bar" aria-label="Prompt copy action">
+        <div>
+          <strong>{ready ? 'Ready to copy' : 'Prompt needs attention'}</strong>
+          <span>
+            {ready
+              ? `${compiled.text.trim().split(/\s+/).length} words · local plain text`
+              : staleSlots.length
+                ? `${staleSlots.length} stale project field${staleSlots.length === 1 ? '' : 's'}`
+                : `${compiled.diagnostics.length} required field${compiled.diagnostics.length === 1 ? '' : 's'} left`}
+          </span>
+        </div>
+        <button type="button" onClick={() => void handleCopy()} disabled={!ready}>
+          {copiedText === compiled.text ? <Check size={18} /> : <Clipboard size={18} />}
+          {copiedText === compiled.text ? 'Copied' : 'Copy prompt'}
+        </button>
       </div>
 
       <ProjectDialog
@@ -370,6 +557,15 @@ export default function App() {
         onClose={() => setProjectDialogOpen(false)}
         onProject={handleProject}
         onClearWorkspace={handleClearWorkspace}
+      />
+
+      <HistoryDialog
+        open={historyOpen}
+        recents={persistableRecents}
+        onClose={() => setHistoryOpen(false)}
+        onSelect={handleRecent}
+        onDelete={(recent) => setRecents((current) => current.filter((item) => item.id !== recent.id))}
+        onClear={() => setRecents([])}
       />
 
       <div className={`toast${notice ? ' is-visible' : ''}`} role="status" aria-live="polite">

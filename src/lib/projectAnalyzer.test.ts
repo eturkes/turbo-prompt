@@ -34,6 +34,15 @@ describe('isSafeProjectPath', () => {
     'project/.env.local',
     'project/config/credentials.json',
     'project/config/credentials-prod.json',
+    'project/secrets/config.json',
+    'project/secrets-prod/config.json',
+    'project/credentials/service.json',
+    '.ssh',
+    '.aws',
+    'project/.ssh',
+    'project/.kube',
+    'project/.ssh/config',
+    'project/.aws/config',
     'project/.npmrc',
     'project/id_ed25519',
     'project/private.pem',
@@ -92,10 +101,12 @@ describe('analyzeProjectFiles', () => {
         {
           text: 'Keep repository data on the local device.',
           source: 'AGENTS.md',
+          scope: '',
         },
         {
           text: 'Run focused tests before finishing a change.',
           source: 'AGENTS.md',
+          scope: '',
         },
       ],
       manifests: ['package.json'],
@@ -141,6 +152,142 @@ describe('analyzeProjectFiles', () => {
     })
     expect(result.files).toContainEqual({ path: 'src/main.ts', kind: 'source' })
     expect(result.summary).toContain('safety cap')
+  })
+
+  it('records the directory scope of nested project instructions', async () => {
+    const result = await analyzeProjectFiles([
+      syntheticFile('workspace/AGENTS.md', '- Apply the project-wide repository contract.'),
+      syntheticFile(
+        'workspace/packages/app/AGENTS.md',
+        '- Apply the app package accessibility contract.',
+      ),
+      syntheticFile('workspace/packages/app/src/main.ts', 'export {}'),
+    ])
+
+    expect(result.instructions).toEqual([
+      {
+        text: 'Apply the project-wide repository contract.',
+        source: 'AGENTS.md',
+        scope: '',
+      },
+      {
+        text: 'Apply the app package accessibility contract.',
+        source: 'packages/app/AGENTS.md',
+        scope: 'packages/app',
+      },
+    ])
+  })
+
+  it('samples repository guidance across scoped instruction files', async () => {
+    const result = await analyzeProjectFiles([
+      syntheticFile('workspace/AGENTS.md', '- Apply the project-wide repository contract.'),
+      ...['a', 'b', 'z'].flatMap((name) => [
+        syntheticFile(
+          `workspace/packages/${name}/AGENTS.md`,
+          `- Apply the ${name} package repository contract.`,
+        ),
+        syntheticFile(`workspace/packages/${name}/src/main.ts`, 'export {}'),
+      ]),
+    ])
+
+    expect(result.instructions.map((instruction) => instruction.scope)).toEqual([
+      '',
+      'packages/a',
+      'packages/b',
+      'packages/z',
+    ])
+  })
+
+  it('marks suggestion metadata sampling as a partial index', async () => {
+    const result = await analyzeProjectFiles(
+      Array.from({ length: 121 }, (_, index) =>
+        syntheticFile(`workspace/src/module-${index}.ts`, 'export {}'),
+      ),
+    )
+
+    expect(result.fileCount).toBe(121)
+    expect(result.files).toHaveLength(120)
+    expect(result).toMatchObject({ truncated: true, partialReasons: ['limit'] })
+  })
+
+  it('samples file suggestions across distant monorepo scopes', async () => {
+    const result = await analyzeProjectFiles([
+      ...Array.from({ length: 130 }, (_, index) =>
+        syntheticFile(`workspace/packages/a/src/module-${String(index).padStart(3, '0')}.ts`, 'export {}'),
+      ),
+      syntheticFile('workspace/packages/z/src/critical.ts', 'export {}'),
+    ])
+
+    expect(result.files).toContainEqual({ path: 'packages/z/src/critical.ts', kind: 'source' })
+    expect(result.directories).toContain('packages/z')
+    expect(result.partialReasons).toContain('limit')
+  })
+
+  it('marks capped scripts and instruction bullets as partial metadata', async () => {
+    const scripts = Object.fromEntries(
+      Array.from({ length: 21 }, (_, index) => [`test:${index}`, 'vitest run']),
+    )
+    const result = await analyzeProjectFiles([
+      syntheticFile('workspace/package.json', JSON.stringify({ name: 'capped-metadata', scripts })),
+      syntheticFile(
+        'workspace/AGENTS.md',
+        [
+          '- Preserve the first repository contract.',
+          '- Preserve the second repository contract.',
+          '- Preserve the third repository contract.',
+          '- Preserve the fourth repository contract.',
+        ].join('\n'),
+      ),
+      syntheticFile('workspace/src/main.ts', 'export {}'),
+    ])
+
+    expect(result.scripts).toHaveLength(20)
+    expect(result.instructions).toHaveLength(3)
+    expect(result.partialReasons).toContain('limit')
+  })
+
+  it('marks unreadable high-signal file contents as partial', async () => {
+    const unreadableManifest = syntheticFile('workspace/package.json', '{}')
+    Object.defineProperty(unreadableManifest, 'text', {
+      value: async () => { throw new Error('Permission denied') },
+    })
+    const result = await analyzeProjectFiles([
+      unreadableManifest,
+      syntheticFile('workspace/src/main.ts', 'export {}'),
+    ])
+
+    expect(result.partialReasons).toContain('unreadable')
+    expect(result.summary).toContain('Unreadable paths were omitted')
+  })
+
+  it('reports unreadable collection omissions separately from size limits', async () => {
+    const result = await analyzeProjectFiles(
+      [syntheticFile('workspace/src/main.ts', 'export {}')],
+      undefined,
+      true,
+      ['unreadable'],
+    )
+
+    expect(result.partialReasons).toEqual(['unreadable'])
+    expect(result.summary).toContain('Unreadable paths were omitted')
+    expect(result.summary).not.toContain('safety cap')
+  })
+
+  it('does not assign a nested package manager to root scripts', async () => {
+    const result = await analyzeProjectFiles([
+      syntheticFile(
+        'workspace/package.json',
+        JSON.stringify({ name: 'root-app', scripts: { test: 'vitest run' } }),
+      ),
+      syntheticFile('workspace/package-lock.json', '{}'),
+      syntheticFile('workspace/packages/nested/pnpm-lock.yaml', ''),
+      syntheticFile('workspace/src/main.ts', 'export {}'),
+    ])
+
+    expect(result.packageManager).toBe('npm')
+    expect(result.scripts).toEqual([
+      { name: 'test', command: 'npm run test', source: 'package.json' },
+    ])
   })
 
   it('ranks across an oversized compatibility-picker list before retention', async () => {

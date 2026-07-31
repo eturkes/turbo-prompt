@@ -8,6 +8,7 @@ import {
   Sparkles,
 } from 'lucide-react'
 import type { PromptTemplate, RecentPrompt } from '../domain/types'
+import { relativeTime } from '../lib/promptHistory'
 
 const templateIcons = {
   spark: Sparkles,
@@ -24,14 +25,6 @@ interface TemplateSidebarProps {
   onSelect: (template: PromptTemplate) => void
   onRecent: (recent: RecentPrompt) => void
   onNew: () => void
-}
-
-function relativeTime(value: string): string {
-  const elapsed = Date.now() - new Date(value).getTime()
-  if (elapsed < 60_000) return 'now'
-  if (elapsed < 3_600_000) return `${Math.floor(elapsed / 60_000)}m`
-  if (elapsed < 86_400_000) return `${Math.floor(elapsed / 3_600_000)}h`
-  return `${Math.floor(elapsed / 86_400_000)}d`
 }
 
 export function TemplateSidebar({
@@ -109,7 +102,7 @@ export function TemplateSidebar({
           <span className="status-dot" />
           Local workspace
         </div>
-        <span className="version-mark">v0.1</span>
+        <span className="version-mark">v0.2</span>
       </div>
     </aside>
   )

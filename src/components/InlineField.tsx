@@ -11,6 +11,7 @@ import { SuggestionMenu } from './SuggestionMenu'
 export interface InlineFieldProps {
   slot: PromptSlot
   selection: SlotSelection | undefined
+  targetSelection: SlotSelection | undefined
   project: ProjectContext
   onChange: (selection: SlotSelection) => void
   onClear?: () => void
@@ -20,6 +21,7 @@ export interface InlineFieldProps {
 export function InlineField({
   slot,
   selection,
+  targetSelection,
   project,
   onChange,
   onClear,
@@ -69,7 +71,7 @@ export function InlineField({
         isStale
           ? 'Selection no longer found in the current project.'
           : `Source: ${selection.source}.`
-      } Open suggestions.`
+      } Open suggestions. Press Delete or Backspace to clear.`
     : `${slot.label}: ${slot.placeholder}. Open suggestions.${
         slot.required ? ' Required.' : ''
       }`
@@ -120,6 +122,14 @@ export function InlineField({
           } else if (event.key === 'Escape' && isOpen) {
             event.preventDefault()
             setIsOpen(false)
+          } else if (
+            selection &&
+            onClear &&
+            (event.key === 'Delete' || event.key === 'Backspace')
+          ) {
+            event.preventDefault()
+            onClear()
+            setIsOpen(false)
           }
         }}
       >
@@ -138,7 +148,9 @@ export function InlineField({
               ? 'Project'
               : selection.origin === 'custom'
                 ? 'Custom'
-                : 'Built in'}
+                : selection.origin === 'recent'
+                  ? 'History'
+                  : 'Built in'}
           </span>
         ) : null}
         {isStale ? <span className="inline-field__status">Stale</span> : null}
@@ -149,6 +161,7 @@ export function InlineField({
         <button
           className="inline-field__clear"
           type="button"
+          tabIndex={-1}
           aria-label={`Clear ${slot.label.toLocaleLowerCase()} selection`}
           title={`Clear ${slot.label.toLocaleLowerCase()} selection`}
           onClick={(event) => {
@@ -168,6 +181,7 @@ export function InlineField({
             id={menuId}
             slot={slot}
             selection={selection}
+            targetSelection={targetSelection}
             project={project}
             onSelect={(nextSelection) => {
               onChange(nextSelection)

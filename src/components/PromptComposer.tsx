@@ -29,7 +29,7 @@ export function PromptComposer({ template, values, project, onChange, onReset }:
   const requiredSlots = template.slots.filter((slot) => slot.required)
   const filled = requiredSlots.filter((slot) => values[slot.id]?.value.trim()).length
   const staleCount = template.slots.filter((slot) =>
-    isProjectSelectionStale(slot, values[slot.id], project),
+    isProjectSelectionStale(slot, values[slot.id], project, values.target),
   ).length
   const complete = filled === requiredSlots.length && staleCount === 0
   const hiddenOptionalSlotIds = Array.from(
@@ -56,7 +56,8 @@ export function PromptComposer({ template, values, project, onChange, onReset }:
         slot={slot}
         selection={selection}
         project={project}
-        stale={isProjectSelectionStale(slot, selection, project)}
+        targetSelection={values.target}
+        stale={isProjectSelectionStale(slot, selection, project, values.target)}
         onChange={(next) => onChange(slot.id, next)}
         onClear={() => onChange(slot.id, undefined)}
       />
@@ -92,12 +93,39 @@ export function PromptComposer({ template, values, project, onChange, onReset }:
         </header>
 
         <article className="prompt-canvas" aria-label="Interactive prompt">
-          {segmentsVisible(template.segments, values).map((segment, index) => {
-            if (segment.type === 'text') return <span key={`text-${index}`}>{segment.value}</span>
+          {segmentsVisible(template.segments, values).map((segment, index, visibleSegments) => {
+            if (segment.type === 'text') {
+              const followsSlot = visibleSegments[index - 1]?.type === 'slot'
+              const value = followsSlot && /^[.!?]/.test(segment.value)
+                ? segment.value.slice(1)
+                : segment.value
+              return <span key={`text-${index}`}>{value}</span>
+            }
             if (segment.type === 'optional') return null
-            return renderField(segment.slotId, `${segment.slotId}-${index}`)
+            const next = visibleSegments[index + 1]
+            const punctuation = next?.type === 'text'
+              ? next.value.match(/^[.!?]/)?.[0]
+              : undefined
+            return (
+              <span className="prompt-slot-cluster" key={`${segment.slotId}-${index}`}>
+                {renderField(segment.slotId, `${segment.slotId}-${index}-field`)}
+                {punctuation}
+              </span>
+            )
           })}
         </article>
+
+        <div className="mobile-prompt-fields" aria-label="Prompt fields">
+          {template.slots.map((slot, index) => (
+            <div className="mobile-prompt-field" key={`mobile-${slot.id}`}>
+              <div className="mobile-prompt-field__heading">
+                <span>{String(index + 1).padStart(2, '0')} · {slot.label}</span>
+                <small>{slot.description}</small>
+              </div>
+              {renderField(slot.id, `mobile-field-${slot.id}`)}
+            </div>
+          ))}
+        </div>
 
         {hiddenOptionalSlotIds.length > 0 && (
           <div className="optional-fields" aria-label="Optional prompt fields">
@@ -114,7 +142,7 @@ export function PromptComposer({ template, values, project, onChange, onReset }:
             <span><i className="legend-mark template" />Template suggestion</span>
             <span><i className="legend-mark custom" />Custom wording</span>
           </div>
-          <span className="composer-tip"><kbd>Tab</kbd> moves between fields</span>
+          <span className="composer-tip"><kbd>Tab</kbd> moves · <kbd>Del</kbd> clears</span>
         </footer>
       </div>
     </section>

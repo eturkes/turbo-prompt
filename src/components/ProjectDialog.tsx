@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef, useState, type ChangeEvent, type DragEvent, type MouseEvent } from 'react'
 import { FolderOpen, RotateCcw, ShieldCheck, Trash2, Upload, X } from 'lucide-react'
 import { demoProject } from '../data/demoProject'
-import type { ProjectContext } from '../domain/types'
+import type { ProjectContext, ProjectIndexPartialReason } from '../domain/types'
 import {
   analyzeProjectFiles,
   compareProjectPaths,
@@ -30,6 +30,7 @@ const rootTraversalQuantum = 256
 interface LoadedProjectFiles {
   files: File[]
   truncated: boolean
+  partialReasons: ProjectIndexPartialReason[]
 }
 
 interface HandleCandidate {
@@ -104,6 +105,7 @@ async function readDirectoryHandle(
   ]
   let entries = 0
   let depthTruncated = false
+  let unreadable = false
 
   // Each round visits every discovered directory. Root enumeration receives a
   // larger quantum so late sibling directories are discovered without letting
@@ -130,7 +132,14 @@ async function readDirectoryHandle(
         index < quantum && entries < projectAnalysisLimits.maxEntries;
         index += 1
       ) {
-        const next = await current.iterator.next()
+        let next: IteratorResult<[string, FileSystemHandle]>
+        try {
+          next = await current.iterator.next()
+        } catch {
+          unreadable = true
+          exhausted = true
+          break
+        }
         if (next.done) {
           exhausted = true
           break
@@ -144,11 +153,15 @@ async function readDirectoryHandle(
         if (entry.kind === 'directory') {
           if (current.depth < projectAnalysisLimits.maxDepth) {
             const directoryEntry = entry as FileSystemDirectoryHandle
-            discovered.push({
-              iterator: directoryEntry.entries()[Symbol.asyncIterator](),
-              parent: relativePath,
-              depth: current.depth + 1,
-            })
+            try {
+              discovered.push({
+                iterator: directoryEntry.entries()[Symbol.asyncIterator](),
+                parent: relativePath,
+                depth: current.depth + 1,
+              })
+            } catch {
+              unreadable = true
+            }
           } else {
             depthTruncated = true
           }
@@ -173,16 +186,23 @@ async function readDirectoryHandle(
     try {
       files.push(fileWithRelativePath(await candidate.handle.getFile(), candidate.path))
     } catch {
-      // One unreadable file should not prevent the rest of the project from indexing.
+      unreadable = true
     }
   }
 
+  const reachedLimit =
+    candidates.length > projectAnalysisLimits.maxFiles ||
+    entries >= projectAnalysisLimits.maxEntries ||
+    depthTruncated
+  const partialReasons: ProjectIndexPartialReason[] = [
+    ...(reachedLimit ? ['limit' as const] : []),
+    ...(unreadable ? ['unreadable' as const] : []),
+  ]
+
   return {
     files,
-    truncated:
-      candidates.length > projectAnalysisLimits.maxFiles ||
-      entries >= projectAnalysisLimits.maxEntries ||
-      depthTruncated,
+    truncated: partialReasons.length > 0,
+    partialReasons,
   }
 }
 
@@ -199,24 +219,28 @@ function collectDroppedEntry(
   depth: number,
   candidates: DroppedCandidate[],
   pending: PendingDroppedDirectory[],
-): boolean {
+): ProjectIndexPartialReason | null {
   const path = entry.fullPath.replace(/^\/+/, '') || entry.name
-  if (!isSafeProjectPath(path)) return false
+  if (!isSafeProjectPath(path)) return null
 
   if (entry.isFile) {
     candidates.push({ entry: entry as FileSystemFileEntry, path })
-    return false
+    return null
   }
 
-  if (!entry.isDirectory) return false
-  if (depth >= projectAnalysisLimits.maxDepth) return true
-  pending.push({
-    reader: (entry as FileSystemDirectoryEntry).createReader(),
-    depth: depth + 1,
-    path,
-    buffered: [],
-  })
-  return false
+  if (!entry.isDirectory) return null
+  if (depth >= projectAnalysisLimits.maxDepth) return 'limit'
+  try {
+    pending.push({
+      reader: (entry as FileSystemDirectoryEntry).createReader(),
+      depth: depth + 1,
+      path,
+      buffered: [],
+    })
+    return null
+  } catch {
+    return 'unreadable'
+  }
 }
 
 async function filesFromDrop(
@@ -233,6 +257,7 @@ async function filesFromDrop(
     return {
       files: fallback,
       truncated: fallback.length > projectAnalysisLimits.maxFiles,
+      partialReasons: fallback.length > projectAnalysisLimits.maxFiles ? ['limit'] : [],
     }
   }
 
@@ -240,10 +265,13 @@ async function filesFromDrop(
   const pending: PendingDroppedDirectory[] = []
   let entryCount = 0
   let depthTruncated = false
+  let unreadable = false
   for (const entry of entries) {
     if (entryCount >= projectAnalysisLimits.maxEntries) break
     entryCount += 1
-    if (collectDroppedEntry(entry, -1, candidates, pending)) depthTruncated = true
+    const partialReason = collectDroppedEntry(entry, -1, candidates, pending)
+    if (partialReason === 'limit') depthTruncated = true
+    if (partialReason === 'unreadable') unreadable = true
   }
 
   // Readers yield batches, but one buffered entry per directory is consumed
@@ -267,7 +295,13 @@ async function filesFromDrop(
 
       for (let index = 0; index < quantum; index += 1) {
         if (!current.buffered.length) {
-          current.buffered.push(...(await readEntryBatch(current.reader)))
+          try {
+            current.buffered.push(...(await readEntryBatch(current.reader)))
+          } catch {
+            unreadable = true
+            exhausted = true
+            break
+          }
         }
         const child = current.buffered.shift()
         if (!child) {
@@ -275,9 +309,9 @@ async function filesFromDrop(
           break
         }
         entryCount += 1
-        if (collectDroppedEntry(child, current.depth, candidates, discovered)) {
-          depthTruncated = true
-        }
+        const partialReason = collectDroppedEntry(child, current.depth, candidates, discovered)
+        if (partialReason === 'limit') depthTruncated = true
+        if (partialReason === 'unreadable') unreadable = true
         if (entryCount >= projectAnalysisLimits.maxEntries) break
       }
 
@@ -296,24 +330,30 @@ async function filesFromDrop(
       const file = await readEntryFile(candidate.entry)
       files.push(fileWithRelativePath(file, candidate.path))
     } catch {
-      // One unreadable file should not prevent the rest of the project from indexing.
+      unreadable = true
     }
   }
+
+  const reachedLimit =
+    candidates.length > projectAnalysisLimits.maxFiles ||
+    entryCount >= projectAnalysisLimits.maxEntries ||
+    depthTruncated ||
+    fallback.length > projectAnalysisLimits.maxFiles
+  const partialReasons: ProjectIndexPartialReason[] = [
+    ...(reachedLimit ? ['limit' as const] : []),
+    ...(unreadable ? ['unreadable' as const] : []),
+  ]
 
   return files.length
     ? {
         files,
-        truncated:
-          candidates.length > projectAnalysisLimits.maxFiles ||
-          entryCount >= projectAnalysisLimits.maxEntries ||
-          depthTruncated,
+        truncated: partialReasons.length > 0,
+        partialReasons,
       }
     : {
         files: fallback,
-        truncated:
-          fallback.length > projectAnalysisLimits.maxFiles ||
-          entryCount >= projectAnalysisLimits.maxEntries ||
-          depthTruncated,
+        truncated: partialReasons.length > 0,
+        partialReasons,
       }
 }
 
@@ -398,6 +438,7 @@ export function ProjectDialog({
         loaded.files,
         controller.signal,
         loaded.truncated,
+        loaded.partialReasons,
       )
       setConfirmClear(false)
       onProject(project)
@@ -431,6 +472,7 @@ export function ProjectDialog({
         () => ({
           files,
           truncated: files.length > projectAnalysisLimits.maxFiles,
+          partialReasons: files.length > projectAnalysisLimits.maxFiles ? ['limit'] : [],
         }),
         'Reading selected files…',
       )
@@ -527,7 +569,7 @@ export function ProjectDialog({
           <div>
             <strong>Processed and stored locally</strong>
             <p>
-              Files stay on this device. Lightweight metadata and prompt history persist in this browser until you clear them.
+              Files stay on this device. Indexed paths, detected project details, repository-guidance excerpts, and prompt history persist when browser storage is available.
             </p>
           </div>
         </div>

@@ -142,6 +142,64 @@ describe('compilePrompt', () => {
     )
   })
 
+  it('rejects a required slot hidden behind an optional-only condition', () => {
+    const invalid: PromptTemplate = {
+      ...template,
+      slots: template.slots.map((slot) =>
+        slot.id === 'verification' ? { ...slot, required: false } : slot,
+      ),
+      segments: [
+        {
+          type: 'optional',
+          whenFilled: ['verification'],
+          segments: [
+            { type: 'slot', slotId: 'action' },
+            { type: 'slot', slotId: 'verification' },
+          ],
+        },
+      ],
+    }
+
+    const result = compilePrompt(invalid, {
+      action: selection('implement', 'Implement'),
+    })
+
+    expect(result.complete).toBe(false)
+    expect(result.diagnostics).toContainEqual(
+      expect.objectContaining({
+        slotId: '$template',
+        message: expect.stringContaining('Required slot can be hidden'),
+      }),
+    )
+  })
+
+  it('rejects non-canonical IDs for project-aware slots', () => {
+    const invalid: PromptTemplate = {
+      ...template,
+      slots: template.slots.map((slot) =>
+        slot.kind === 'verification' ? { ...slot, id: 'check-command' } : slot,
+      ),
+      segments: template.segments.map((segment) =>
+        segment.type === 'optional'
+          ? {
+              ...segment,
+              whenFilled: ['check-command'],
+              segments: segment.segments.map((nested) =>
+                nested.type === 'slot' && nested.slotId === 'verification'
+                  ? { ...nested, slotId: 'check-command' }
+                  : nested,
+              ),
+            }
+          : segment,
+      ),
+    }
+
+    expect(validateTemplate(invalid)).toContainEqual({
+      path: 'slots[1].id',
+      message: 'Project-aware verification slots must use the canonical ID: verification',
+    })
+  })
+
   it('treats malformed runtime selection values as unresolved instead of throwing', () => {
     const malformed = {
       action: { ...selection('bad', 'bad'), value: 42 },

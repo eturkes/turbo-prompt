@@ -8,6 +8,11 @@ import {
   type Suggestion,
   type SuggestionOrigin,
 } from '../domain/types'
+import {
+  applicableProjectInstructions,
+  buildProjectEvidencePack,
+  isRecommendedVerificationScript,
+} from './evidencePack'
 
 type StaticSuggestion = Omit<Suggestion, 'kind' | 'score'>
 
@@ -170,7 +175,20 @@ const staticSuggestions: Record<PromptSlot['kind'], StaticSuggestion[]> = {
   ],
 }
 
-function projectSuggestions(slot: PromptSlot, project: ProjectContext): Suggestion[] {
+function projectSuggestions(
+  slot: PromptSlot,
+  project: ProjectContext,
+  targetSelection?: SlotSelection,
+): Suggestion[] {
+  const evidence = buildProjectEvidencePack(project, targetSelection)?.proposals
+    .filter((proposal) => proposal.slotId === slot.id)
+    .map<Suggestion>((proposal) => ({
+      ...proposal.selection,
+      kind: slot.kind,
+      detail: proposal.detail,
+      score: 190,
+    })) ?? []
+
   if (slot.kind === 'target') {
     const files = project.files.map((file, index) => ({
       id: `project-file-${file.path.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}`,
@@ -196,41 +214,42 @@ function projectSuggestions(slot: PromptSlot, project: ProjectContext): Suggesti
   }
 
   if (slot.kind === 'verification') {
-    return project.scripts.map((script, index) => ({
+    return [...evidence, ...project.scripts.map((script, index) => ({
       id: `project-script-${script.name}`,
       kind: slot.kind,
       label: script.command,
       value: script.command,
       detail: `${script.name} script`,
       source: `${script.source} · script`,
-      origin: 'project',
+      origin: 'project' as const,
       score: script.name === 'check' || script.name === 'test' ? 170 - index : 100 - index,
-    }))
+    }))]
   }
 
   if (slot.kind === 'constraint') {
-    return project.instructions.map((instruction, index) => ({
+    return [...evidence, ...applicableProjectInstructions(project, targetSelection?.value).map((instruction, index) => ({
       id: `project-instruction-${index}`,
       kind: slot.kind,
       label: instruction.text,
       value: instruction.text,
       detail: 'Repository instruction',
       source: instruction.source,
-      origin: 'project',
+      origin: 'project' as const,
       score: 145 - index,
-    }))
+    }))]
   }
 
   if (slot.kind === 'context') {
-    const suggestions: Suggestion[] = []
-    if (project.instructions.length) {
+    const suggestions: Suggestion[] = [...evidence]
+    const instructions = applicableProjectInstructions(project, targetSelection?.value)
+    if (instructions.length) {
       suggestions.push({
         id: 'project-context-instructions',
         kind: slot.kind,
         label: 'Project instructions',
-        value: `project instructions in ${project.instructions.map((item) => item.source).filter((value, index, all) => all.indexOf(value) === index).join(' and ')}`,
-        detail: `${project.instructions.length} indexed instruction${project.instructions.length === 1 ? '' : 's'}`,
-        source: project.instructions[0]!.source,
+        value: `applicable project instructions in ${instructions.map((item) => item.source).filter((value, index, all) => all.indexOf(value) === index).join(' and ')}`,
+        detail: `${instructions.length} applicable instruction${instructions.length === 1 ? '' : 's'}`,
+        source: instructions[0]!.source,
         origin: 'project',
         score: 150,
       })
@@ -270,18 +289,26 @@ export function getSuggestions(
   slot: PromptSlot,
   project: ProjectContext,
   query = '',
+  targetSelection?: SlotSelection,
 ): Suggestion[] {
   const builtIn = staticSuggestions[slot.kind].map((suggestion) => ({
     ...suggestion,
     kind: slot.kind,
   }))
   const seen = new Set<string>()
+  const seenProjectTargetPaths = new Set<string>()
 
-  return [...projectSuggestions(slot, project), ...builtIn]
+  return [...projectSuggestions(slot, project, targetSelection), ...builtIn]
     .map((suggestion) => ({ ...suggestion, score: textScore(suggestion, query) }))
     .filter((suggestion) => (suggestion.score ?? -1) >= 0)
     .filter((suggestion) => {
       const key = suggestion.value.trim().toLowerCase()
+      if (slot.kind === 'target' && suggestion.origin === 'project') {
+        if (seenProjectTargetPaths.has(suggestion.value)) return false
+        seenProjectTargetPaths.add(suggestion.value)
+        seen.add(key)
+        return true
+      }
       if (seen.has(key)) return false
       seen.add(key)
       return true
@@ -303,10 +330,14 @@ export function isProjectSelectionStale(
   slot: PromptSlot,
   selection: SlotSelection | undefined,
   project: ProjectContext,
+  targetSelection?: SlotSelection,
 ): boolean {
   if (selection?.origin !== 'project') return false
-  return !getSuggestions(slot, project).some(
-    (suggestion) => suggestion.origin === 'project' && suggestion.value === selection.value,
+  return !getSuggestions(slot, project, '', targetSelection).some(
+    (suggestion) =>
+      suggestion.origin === 'project' &&
+      suggestion.value === selection.value &&
+      suggestion.source === selection.source,
   )
 }
 
@@ -320,12 +351,18 @@ export function initialValuesFor(
       if (!preset) return []
       if (preset.origin !== 'project') return [[slot.id, preset]]
 
-      const projectSuggestions = getSuggestions(slot, project).filter(
+      const suggestions = getSuggestions(slot, project)
+      const projectSuggestions = suggestions.filter(
         (suggestion) => suggestion.origin === 'project',
       )
       const resolved =
         projectSuggestions.find((suggestion) => suggestion.value === preset.value) ??
-        projectSuggestions[0]
+        (slot.kind === 'verification'
+          ? projectSuggestions.find((suggestion) => project.scripts.some(
+              (script) =>
+                script.command === suggestion.value && isRecommendedVerificationScript(script),
+            )) ?? suggestions.find((suggestion) => suggestion.origin === 'template')
+          : projectSuggestions[0])
       return resolved ? [[slot.id, toSelection(resolved)]] : []
     }),
   )

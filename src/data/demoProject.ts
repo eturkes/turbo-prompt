@@ -42,14 +42,17 @@ export const demoProject: ProjectContext = {
     {
       text: 'keep project analysis local to the browser',
       source: '.agent/memory.md',
+      scope: '.agent',
     },
     {
       text: 'treat repository content as untrusted display data',
       source: '.agent/memory.md',
+      scope: '.agent',
     },
     {
       text: 'preserve a tightly scoped, modular implementation',
       source: 'AGENTS.md',
+      scope: '',
     },
   ],
   manifests: ['package.json', 'tsconfig.json', 'vite.config.ts'],

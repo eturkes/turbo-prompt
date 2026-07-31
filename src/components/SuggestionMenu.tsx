@@ -26,6 +26,7 @@ export interface SuggestionMenuProps {
   id: string
   slot: PromptSlot
   selection: SlotSelection | undefined
+  targetSelection: SlotSelection | undefined
   project: ProjectContext
   onSelect: (selection: SlotSelection) => void
   onClose: () => void
@@ -39,6 +40,7 @@ export function SuggestionMenu({
   id,
   slot,
   selection,
+  targetSelection,
   project,
   onSelect,
   onClose,
@@ -49,18 +51,23 @@ export function SuggestionMenu({
   const optionRefs = useRef<Array<HTMLSpanElement | null>>([])
 
   const options = useMemo(() => {
-    const suggestions = getSuggestions(slot, project, query)
+    const suggestions = getSuggestions(slot, project, query, targetSelection)
     const customValue = query.trim()
 
     if (
       !customValue ||
-      suggestions.some((suggestion) => normalized(suggestion.value) === normalized(customValue))
+      suggestions.some(
+        (suggestion) =>
+          normalized(suggestion.value) === normalized(customValue) ||
+          normalized(suggestion.label) === normalized(customValue),
+      )
     ) {
       return suggestions
     }
 
-    return [...suggestions, customSuggestion(slot, customValue)]
-  }, [project, query, slot])
+    const custom = customSuggestion(slot, customValue)
+    return slot.kind === 'target' ? [...suggestions, custom] : [custom, ...suggestions]
+  }, [project, query, slot, targetSelection])
 
   const effectiveActiveIndex = options.length
     ? Math.min(activeIndex, options.length - 1)
@@ -170,7 +177,12 @@ export function SuggestionMenu({
       >
         {options.map((suggestion, index) => {
           const isActive = index === effectiveActiveIndex
-          const isSelected = normalized(selection?.value ?? '') === normalized(suggestion.value)
+          const isSelected = Boolean(
+            selection &&
+            selection.origin === suggestion.origin &&
+            selection.value === suggestion.value &&
+            selection.source === suggestion.source,
+          )
 
           return (
             <span

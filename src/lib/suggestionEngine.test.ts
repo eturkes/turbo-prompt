@@ -29,6 +29,15 @@ const verificationSlot: PromptSlot = {
   description: 'How to verify the work',
 }
 
+const constraintSlot: PromptSlot = {
+  id: 'constraint',
+  kind: 'constraint',
+  label: 'Guardrail',
+  placeholder: 'Choose a guardrail',
+  required: true,
+  description: 'The repository rule in scope',
+}
+
 const project: ProjectContext = {
   schemaVersion: 1,
   id: 'suggestion-fixture',
@@ -138,6 +147,67 @@ describe('getSuggestions', () => {
         project,
       ),
     ).toBe(true)
+  })
+
+  it('preserves case-distinct project paths and their exact freshness', () => {
+    const caseSensitiveProject = {
+      ...project,
+      files: [
+        { path: 'src/Foo.ts', kind: 'source' as const },
+        { path: 'src/foo.ts', kind: 'source' as const },
+      ],
+    }
+    const suggestions = getSuggestions(targetSlot, caseSensitiveProject).filter(
+      (suggestion) => suggestion.origin === 'project' && suggestion.value.endsWith('.ts'),
+    )
+
+    expect(suggestions.map((suggestion) => suggestion.value)).toEqual(['src/Foo.ts', 'src/foo.ts'])
+    expect(suggestions.every((suggestion) =>
+      !isProjectSelectionStale(targetSlot, toSelection(suggestion), caseSensitiveProject),
+    )).toBe(true)
+  })
+
+  it('invalidates equal instruction wording when its scoped source changes', () => {
+    const scopedProject: ProjectContext = {
+      ...project,
+      files: [
+        { path: 'packages/a/src/main.ts', kind: 'source' },
+        { path: 'packages/b/src/main.ts', kind: 'source' },
+      ],
+      directories: ['packages/a', 'packages/a/src', 'packages/b', 'packages/b/src'],
+      instructions: [
+        { text: 'Preserve the package contract.', source: 'packages/a/AGENTS.md', scope: 'packages/a' },
+        { text: 'Preserve the package contract.', source: 'packages/b/AGENTS.md', scope: 'packages/b' },
+      ],
+      manifests: [],
+    }
+    const targetA = toSelection(getSuggestions(targetSlot, scopedProject).find(
+      (suggestion) => suggestion.value === 'packages/a/src/main.ts',
+    )!)
+    const targetB = toSelection(getSuggestions(targetSlot, scopedProject).find(
+      (suggestion) => suggestion.value === 'packages/b/src/main.ts',
+    )!)
+    const fromA = toSelection(getSuggestions(constraintSlot, scopedProject, '', targetA).find(
+      (suggestion) => suggestion.source === 'packages/a/AGENTS.md',
+    )!)
+
+    expect(isProjectSelectionStale(constraintSlot, fromA, scopedProject, targetA)).toBe(false)
+    expect(isProjectSelectionStale(constraintSlot, fromA, scopedProject, targetB)).toBe(true)
+  })
+
+  it('falls back to built-in verification instead of a long-running project script', () => {
+    const values = initialValuesFor(defaultTemplate, {
+      ...project,
+      scripts: [
+        { name: 'dev', command: 'npm run dev', source: 'package.json' },
+        { name: 'test:watch', command: 'npm run test:watch', source: 'package.json' },
+      ],
+    })
+
+    expect(values.verification).toMatchObject({
+      value: 'the relevant focused tests',
+      origin: 'template',
+    })
   })
 })
 
