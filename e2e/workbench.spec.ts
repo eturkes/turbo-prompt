@@ -138,6 +138,7 @@ test('keeps the core workflow within a narrow viewport', async ({ page }) => {
     if (width <= 560) {
       await expect(page.locator('.mobile-prompt-fields')).toBeVisible()
       await expect(page.locator('.prompt-canvas')).toBeHidden()
+      await expect(page.getByRole('group', { name: 'Interactive prompt' })).toBeVisible()
       const targetValue = page.locator('.mobile-prompt-field .inline-field__value').nth(1)
       expect(await targetValue.evaluate((element) => getComputedStyle(element).whiteSpace)).toBe('normal')
       const actionField = page.locator('.mobile-prompt-field .inline-field__trigger').first()

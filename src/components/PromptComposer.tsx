@@ -115,7 +115,7 @@ export function PromptComposer({ template, values, project, onChange, onReset }:
           })}
         </article>
 
-        <div className="mobile-prompt-fields" aria-label="Prompt fields">
+        <div className="mobile-prompt-fields" role="group" aria-label="Interactive prompt">
           {template.slots.map((slot, index) => (
             <div className="mobile-prompt-field" key={`mobile-${slot.id}`}>
               <div className="mobile-prompt-field__heading">
