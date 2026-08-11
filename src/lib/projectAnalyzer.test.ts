@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { analyzeProjectFiles, isSafeProjectPath } from './projectAnalyzer'
+import { analyzeProjectEntries, analyzeProjectFiles, isSafeProjectPath } from './projectAnalyzer'
 
 function syntheticFile(path: string, contents = ''): File {
   const name = path.split('/').at(-1) ?? path
@@ -54,6 +54,39 @@ describe('isSafeProjectPath', () => {
 })
 
 describe('analyzeProjectFiles', () => {
+  it('analyzes host-style entries through a bounded async text reader', async () => {
+    const contents: Record<string, string> = {
+      'package.json': JSON.stringify({
+        name: 'host-project',
+        scripts: { check: 'vitest run' },
+        dependencies: { react: '19.0.0' },
+      }),
+      'AGENTS.md': '- Preserve the host project boundary.',
+      'src/main.tsx': 'export const main = true',
+      '.env': 'TOKEN=never-read',
+    }
+    const reads: string[] = []
+    const result = await analyzeProjectEntries(
+      Object.entries(contents).map(([path, text]) => ({ path, size: text.length })),
+      async (path) => {
+        reads.push(path)
+        return { text: contents[path]!, truncated: false }
+      },
+    )
+
+    expect(reads.sort()).toEqual(['AGENTS.md', 'package.json'])
+    expect(result).toMatchObject({
+      name: 'host-project',
+      rootLabel: 'local-project',
+      fileCount: 3,
+      frameworks: ['React'],
+      scripts: [{ name: 'check', command: 'npm run check', source: 'package.json' }],
+      instructions: [
+        { text: 'Preserve the host project boundary.', source: 'AGENTS.md', scope: '' },
+      ],
+    })
+  })
+
   it('derives stack, scripts, instructions, and file metadata from local files', async () => {
     const packageJson = JSON.stringify({
       name: 'clickable-prompts',

@@ -38,14 +38,21 @@ import {
 import { promptFingerprint } from './lib/promptHistory'
 import { clearWorkspace, fitWorkspaceRecents, loadWorkspace, saveWorkspace } from './lib/storage'
 
-const stored = loadWorkspace()
-const storedTemplate = templates.find((template) => template.id === stored?.templateId)
-const initialTemplate = storedTemplate ?? defaultTemplate
-const initialProject = stored?.project ?? demoProject
-const initialValues =
-  storedTemplate && stored?.values
-    ? stored.values
-    : initialValuesFor(initialTemplate, initialProject)
+export interface AppProps {
+  embeddedProject?: ProjectContext
+}
+
+function initialWorkspace(embeddedProject: ProjectContext | undefined) {
+  const stored = embeddedProject ? null : loadWorkspace()
+  const storedTemplate = templates.find((template) => template.id === stored?.templateId)
+  const template = storedTemplate ?? defaultTemplate
+  const project = embeddedProject ?? stored?.project ?? demoProject
+  const values =
+    storedTemplate && stored?.values
+      ? stored.values
+      : initialValuesFor(template, project)
+  return { template, project, values, recents: stored?.recents ?? [] }
+}
 
 async function copyText(text: string): Promise<void> {
   if (navigator.clipboard?.writeText) {
@@ -67,11 +74,13 @@ async function copyText(text: string): Promise<void> {
   if (!copied) throw new Error('Clipboard write failed')
 }
 
-export default function App() {
-  const [template, setTemplate] = useState<PromptTemplate>(initialTemplate)
-  const [values, setValues] = useState<PromptValues>(initialValues)
-  const [project, setProject] = useState<ProjectContext>(initialProject)
-  const [recents, setRecents] = useState<RecentPrompt[]>(stored?.recents ?? [])
+export default function App({ embeddedProject }: AppProps) {
+  const embedded = embeddedProject !== undefined
+  const [startup] = useState(() => initialWorkspace(embeddedProject))
+  const [template, setTemplate] = useState<PromptTemplate>(startup.template)
+  const [values, setValues] = useState<PromptValues>(startup.values)
+  const [project, setProject] = useState<ProjectContext>(startup.project)
+  const [recents, setRecents] = useState<RecentPrompt[]>(startup.recents)
   const [projectDialogOpen, setProjectDialogOpen] = useState(false)
   const [historyOpen, setHistoryOpen] = useState(false)
   const [historicalText, setHistoricalText] = useState<string | null>(null)
@@ -126,6 +135,7 @@ export default function App() {
   )
 
   useEffect(() => {
+    if (embedded) return
     if (skipNextWorkspaceSave.current) {
       skipNextWorkspaceSave.current = false
       return
@@ -137,7 +147,7 @@ export default function App() {
       project,
       recents: persistableRecents,
     })
-  }, [persistableRecents, project, template.id, values])
+  }, [embedded, persistableRecents, project, template.id, values])
 
   useEffect(() => () => {
     window.clearTimeout(noticeTimer.current)
@@ -327,7 +337,7 @@ export default function App() {
         ...recents.filter((item) => item.text !== recent.text),
       ].slice(0, 20)
       setRecents(nextRecents)
-      if (!saveWorkspace({
+      if (embedded || !saveWorkspace({
         schemaVersion: 1,
         templateId: copiedSnapshot.template.id,
         values: copiedSnapshot.values,
@@ -436,24 +446,44 @@ export default function App() {
     return () => window.removeEventListener('keydown', onKeyDown)
   })
 
+  const projectIdentity = (
+    <>
+      <span className="project-folder"><FolderGit2 size={17} /></span>
+      <span className="project-meta">
+        <small>{embedded ? 'Host project' : 'Active project'}</small>
+        <strong>{project.name}</strong>
+      </span>
+      {project.branch && <span className="branch-label"><GitBranch size={12} />{project.branch}</span>}
+      {project.isDemo && <span className="demo-label">Demo</span>}
+      {!embedded && <ChevronDown size={14} className="switcher-chevron" />}
+    </>
+  )
+
+  const brand = (
+    <>
+      <span className="brand-mark"><ChevronsRight size={20} strokeWidth={2.4} /></span>
+      <span className="brand-name">turbo<span>prompt</span></span>
+    </>
+  )
+
   return (
     <div className="app-shell">
       <header className="topbar">
-        <a className="brand" href="/" aria-label="Turbo Prompt home">
-          <span className="brand-mark"><ChevronsRight size={20} strokeWidth={2.4} /></span>
-          <span className="brand-name">turbo<span>prompt</span></span>
-        </a>
+        {embedded ? (
+          <div className="brand" aria-label="Turbo Prompt home">{brand}</div>
+        ) : (
+          <a className="brand" href="/" aria-label="Turbo Prompt home">{brand}</a>
+        )}
 
-        <button className="project-switcher" type="button" onClick={() => setProjectDialogOpen(true)}>
-          <span className="project-folder"><FolderGit2 size={17} /></span>
-          <span className="project-meta">
-            <small>Active project</small>
-            <strong>{project.name}</strong>
-          </span>
-          {project.branch && <span className="branch-label"><GitBranch size={12} />{project.branch}</span>}
-          {project.isDemo && <span className="demo-label">Demo</span>}
-          <ChevronDown size={14} className="switcher-chevron" />
-        </button>
+        {embedded ? (
+          <div className="project-switcher is-host-bound" aria-label={`Host project: ${project.name}`}>
+            {projectIdentity}
+          </div>
+        ) : (
+          <button className="project-switcher" type="button" onClick={() => setProjectDialogOpen(true)}>
+            {projectIdentity}
+          </button>
+        )}
 
         <div className="topbar-actions">
           <button
@@ -465,7 +495,9 @@ export default function App() {
             <History size={17} />
             {persistableRecents.length ? <span>{persistableRecents.length}</span> : null}
           </button>
-          <span className="local-badge"><CloudOff size={13} />Local only</span>
+          <span className="local-badge">
+            <CloudOff size={13} />{embedded ? 'Host-bound · session history' : 'Local only'}
+          </span>
         </div>
       </header>
 
@@ -551,13 +583,15 @@ export default function App() {
         </button>
       </div>
 
-      <ProjectDialog
-        open={projectDialogOpen}
-        currentProject={project}
-        onClose={() => setProjectDialogOpen(false)}
-        onProject={handleProject}
-        onClearWorkspace={handleClearWorkspace}
-      />
+      {!embedded ? (
+        <ProjectDialog
+          open={projectDialogOpen}
+          currentProject={project}
+          onClose={() => setProjectDialogOpen(false)}
+          onProject={handleProject}
+          onClearWorkspace={handleClearWorkspace}
+        />
+      ) : null}
 
       <HistoryDialog
         open={historyOpen}

@@ -197,12 +197,27 @@ function representativeProjectFiles(files: ProjectFile[], limit: number): Projec
   return files.filter((file) => selected.has(file.path)).slice(0, limit)
 }
 
-interface RankedFile {
-  file: File
+export interface ProjectAnalysisEntry {
+  path: string
+  size: number
+}
+
+export interface ProjectReadResult {
+  text: string
+  truncated?: boolean
+}
+
+export type ProjectTextReader = (
+  path: string,
+  signal?: AbortSignal,
+) => Promise<ProjectReadResult>
+
+interface RankedEntry {
+  entry: ProjectAnalysisEntry
   path: string
 }
 
-function pushRankedFile(heap: RankedFile[], candidate: RankedFile): void {
+function pushRankedFile(heap: RankedEntry[], candidate: RankedEntry): void {
   const swap = (left: number, right: number) => {
     const previous = heap[left]!
     heap[left] = heap[right]!
@@ -247,20 +262,27 @@ function throwIfAborted(signal?: AbortSignal): void {
 }
 
 async function safeRead(
-  file: File,
+  entry: ProjectAnalysisEntry,
+  readText: ProjectTextReader,
   signal?: AbortSignal,
   onPartial?: (reason: ProjectIndexPartialReason) => void,
 ): Promise<string> {
   throwIfAborted(signal)
-  if (file.size > MAX_CONFIG_BYTES) {
+  if (entry.size > MAX_CONFIG_BYTES) {
     onPartial?.('limit')
     return ''
   }
   try {
-    const contents = await file.text()
+    const result = await readText(entry.path, signal)
     throwIfAborted(signal)
-    return contents
+    if (result.truncated) onPartial?.('limit')
+    if (result.text.length > MAX_CONFIG_BYTES) {
+      onPartial?.('limit')
+      return result.text.slice(0, MAX_CONFIG_BYTES)
+    }
+    return result.text
   } catch {
+    throwIfAborted(signal)
     onPartial?.('unreadable')
     return ''
   }
@@ -283,13 +305,14 @@ function stableId(value: string): string {
   return (hash >>> 0).toString(36)
 }
 
-export async function analyzeProjectFiles(
-  input: readonly File[],
+export async function analyzeProjectEntries(
+  input: readonly ProjectAnalysisEntry[],
+  readText: ProjectTextReader,
   signal?: AbortSignal,
   collectionTruncated = false,
   collectionPartialReasons: readonly ProjectIndexPartialReason[] = [],
 ): Promise<ProjectContext> {
-  const rankedFiles: RankedFile[] = []
+  const rankedFiles: RankedEntry[] = []
   let safeFileCount = 0
   const inspectedCount = Math.min(input.length, MAX_INPUT_PATHS)
   for (let index = 0; index < inspectedCount; index += 1) {
@@ -298,11 +321,11 @@ export async function analyzeProjectFiles(
       input.length > MAX_INPUT_PATHS
         ? Math.round((index * (input.length - 1)) / (MAX_INPUT_PATHS - 1))
         : index
-    const file = input[inputIndex]!
-    const path = relativePath(file)
+    const entry = input[inputIndex]!
+    const path = entry.path
     if (isSafeProjectPath(path)) {
       safeFileCount += 1
-      pushRankedFile(rankedFiles, { file, path })
+      pushRankedFile(rankedFiles, { entry, path })
     }
     if (index > 0 && index % 4_096 === 0) {
       await new Promise<void>((resolve) => setTimeout(resolve, 0))
@@ -317,10 +340,10 @@ export async function analyzeProjectFiles(
   ])
   const accepted = rankedFiles
     .sort((left, right) => compareProjectPaths(left.path, right.path))
-    .map((candidate) => candidate.file)
+    .map((candidate) => candidate.entry)
   if (!accepted.length) throw new Error('No safe project files were found in that folder.')
 
-  const rawPaths = accepted.map(relativePath)
+  const rawPaths = accepted.map((entry) => entry.path)
   const root = rootName(rawPaths)
   const normalizedPaths = rawPaths.map((path) => pathWithoutRoot(path, root))
   const languageCounts = new Map<string, ProjectLanguage>()
@@ -344,6 +367,7 @@ export async function analyzeProjectFiles(
   if (packageFileIndex >= 0) {
     const contents = await safeRead(
       accepted[packageFileIndex]!,
+      readText,
       signal,
       (reason) => partialReasonSet.add(reason),
     )
@@ -399,7 +423,7 @@ export async function analyzeProjectFiles(
     .map(([name]) => name)
 
   const instructionCandidates = accepted
-    .map((file, index) => ({ file, source: normalizedPaths[index]! }))
+    .map((entry, index) => ({ entry, source: normalizedPaths[index]! }))
     .filter(({ source }) => instructionName(source))
   const rootInstruction = instructionCandidates.find(({ source }) => !source.includes('/'))
   const scopedByDirectory = Array.from(
@@ -424,9 +448,14 @@ export async function analyzeProjectFiles(
     ...sampledScopedInstructions,
   ]
   const instructionGroups = await Promise.all(
-    instructionFiles.map(async ({ file, source }) => {
+    instructionFiles.map(async ({ entry, source }) => {
       const scope = source.includes('/') ? source.slice(0, source.lastIndexOf('/')) : ''
-      const text = await safeRead(file, signal, (reason) => partialReasonSet.add(reason))
+      const text = await safeRead(
+        entry,
+        readText,
+        signal,
+        (reason) => partialReasonSet.add(reason),
+      )
       const lineBudget = scope ? 1 : 3
       const bulletLines = text
         .split(/\r?\n/)
@@ -512,6 +541,31 @@ export async function analyzeProjectFiles(
     truncated,
     ...(partialReasons.length ? { partialReasons } : {}),
   }
+}
+
+export async function analyzeProjectFiles(
+  input: readonly File[],
+  signal?: AbortSignal,
+  collectionTruncated = false,
+  collectionPartialReasons: readonly ProjectIndexPartialReason[] = [],
+): Promise<ProjectContext> {
+  const files = new Map(input.map((file) => [relativePath(file), file]))
+  const entries = input.map<ProjectAnalysisEntry>((file) => ({
+    path: relativePath(file),
+    size: file.size,
+  }))
+
+  return analyzeProjectEntries(
+    entries,
+    async (path) => {
+      const file = files.get(path)
+      if (!file) throw new Error(`Project file is unavailable: ${path}`)
+      return { text: await file.text() }
+    },
+    signal,
+    collectionTruncated,
+    collectionPartialReasons,
+  )
 }
 
 export const projectAnalysisLimits = {

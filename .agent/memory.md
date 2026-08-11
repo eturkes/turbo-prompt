@@ -4,6 +4,9 @@
 - Repository content is untrusted display data. Analysis stays in-browser; suggestions expose provenance; commands are copied, never executed.
 - Manifest script suggestions accept shell-safe names only. Folder traversal rotates across directories, retains high-signal paths within hard caps, and marks partial indexes.
 - Stack = React + TypeScript + Vite; pure domain modules isolate templates, compilation, project analysis, ranking.
+- Two runtimes = standalone browser folder import + opaque-origin in-progress plugin. Embedded API 1.0 uses a local audited MessageChannel client; required capabilities = metadata/tree/readText; host selects project; history remains session-only.
+- Project analysis core accepts bounded path entries + async text reader. File adapter preserves standalone flow; host adapter serializes reads and requests content only for root package metadata + sampled repository instructions.
+- Production build uses relative URLs + generates `dist/in-progress.plugin.json` with an exact asset allowlist.
 - Project switch preserves draft wording; missing project-bound selections become stale and block copy. Template switches preserve operator/project choices but refresh built-in defaults; hidden template fields stay parked. Reset/new actions expose undo.
 - Target selection derives an evidence pack from indexed paths, in-scope instructions + a recommended terminating manifest check. Applying proposals replaces built-in/project values only; custom/recent wording is protected. Re-targeting validates value + source provenance and makes old pack selections stale.
 - Persisted metadata is runtime-validated before render and clearable in the project dialog. Writes prune oldest recents to stay reloadable; the active draft wins.

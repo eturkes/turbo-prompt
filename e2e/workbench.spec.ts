@@ -544,3 +544,126 @@ test('keeps indexing when one project directory is unreadable', async ({ page })
   await page.getByRole('combobox', { name: 'Search target suggestions' }).fill('src/main.ts')
   await expect(page.locator('.suggestion-menu__option[title="src/main.ts"]')).toBeVisible()
 })
+
+test('runs as a host-bound in-progress plugin with mapped project context and theme', async ({ page }) => {
+  const pluginUrl = page.url()
+  await page.route('**/assets/**', async (route) => {
+    const response = await route.fetch()
+    await route.fulfill({
+      response,
+      headers: { ...response.headers(), 'access-control-allow-origin': '*' },
+    })
+  })
+  await page.setContent(`
+    <!doctype html>
+    <html>
+      <body style="margin:0">
+        <script>
+          const contents = {
+            'package.json': JSON.stringify({
+              name: 'ignored-manifest-name',
+              scripts: { check: 'vitest run', dev: 'vite' },
+              dependencies: { react: '19.0.0' },
+            }),
+            'package-lock.json': '{}',
+            'AGENTS.md': '- Preserve the embedded project boundary.',
+            'src/feature.ts': 'export const embedded = true',
+          };
+          const tree = [
+            { path: 'src', name: 'src', kind: 'directory', depth: 0 },
+            ...Object.entries(contents).map(([path, text]) => ({
+              path,
+              name: path.split('/').at(-1),
+              kind: 'file',
+              depth: path.includes('/') ? 1 : 0,
+              size: text.length,
+            })),
+          ];
+          const iframe = document.createElement('iframe');
+          iframe.id = 'plugin';
+          iframe.title = 'Turbo Prompt plugin fixture';
+          iframe.setAttribute('sandbox', 'allow-scripts');
+          iframe.style.cssText = 'display:block;width:100vw;height:100vh;border:0';
+          iframe.addEventListener('load', () => {
+            const channel = new MessageChannel();
+            channel.port1.addEventListener('message', ({ data }) => {
+              if (data?.kind !== 'request') return;
+              let result;
+              if (data.method === 'project.metadata') {
+                result = {
+                  id: 'embedded-fixture',
+                  name: 'Embedded fixture',
+                  displayPath: '/projects/embedded-fixture',
+                  color: '#67d5b5',
+                  branch: 'feature/plugin',
+                  available: true,
+                };
+              } else if (data.method === 'project.tree') {
+                result = tree;
+              } else if (data.method === 'project.readText') {
+                result = {
+                  path: data.params.path,
+                  text: contents[data.params.path] ?? '',
+                  truncated: false,
+                };
+              } else {
+                channel.port1.postMessage({
+                  kind: 'response', id: data.id, ok: false, error: 'Unsupported fixture method',
+                });
+                return;
+              }
+              channel.port1.postMessage({ kind: 'response', id: data.id, ok: true, result });
+            });
+            channel.port1.start();
+            iframe.contentWindow.postMessage({
+              type: 'in-progress:init',
+              nonce: 'fixture-nonce',
+              context: {
+                apiVersion: '1.0',
+                capabilities: ['project.metadata', 'project.tree', 'project.readText'],
+                project: {
+                  id: 'embedded-fixture',
+                  name: 'Embedded fixture',
+                  color: '#67d5b5',
+                  available: true,
+                },
+                theme: {
+                  mode: 'dark',
+                  tokens: {
+                    background: '#0b0e14',
+                    surface: '#121722',
+                    surfaceRaised: '#18202c',
+                    border: '#283142',
+                    text: '#e7ecf4',
+                    muted: '#909cb0',
+                    accent: '#67d5b5',
+                    warning: '#f2b84b',
+                    danger: '#ff6b78',
+                    uiFont: 'Atkinson Hyperlegible Next',
+                    monoFont: 'Iosevka',
+                  },
+                },
+              },
+            }, '*', [channel.port2]);
+          });
+          iframe.src = ${JSON.stringify(pluginUrl)};
+          document.body.append(iframe);
+        </script>
+      </body>
+    </html>
+  `)
+
+  const plugin = page.frameLocator('#plugin')
+  await expect(plugin.getByRole('heading', { name: 'Shape the work before the agent starts.' })).toBeVisible()
+  await expect(plugin.getByLabel('Host project: Embedded fixture')).toContainText('feature/plugin')
+  await expect(plugin.getByRole('button', { name: /Target: src\/feature\.ts/ })).toBeVisible()
+  await expect(plugin.getByRole('button', { name: /Verification: npm run check/ })).toBeVisible()
+  await expect(plugin.getByRole('dialog', { name: 'Connect a project' })).toHaveCount(0)
+  await expect(plugin.locator('.local-badge')).toContainText('Host-bound · session history')
+  expect(await plugin.locator('.brand').evaluate((element) => element.tagName)).toBe('DIV')
+  expect(
+    await plugin.locator('html').evaluate((element) =>
+      getComputedStyle(element).getPropertyValue('--canvas').trim(),
+    ),
+  ).toBe('#0b0e14')
+})
