@@ -212,6 +212,10 @@ export type ProjectTextReader = (
   signal?: AbortSignal,
 ) => Promise<ProjectReadResult>
 
+export interface ProjectAnalysisOptions {
+  stripCommonRoot?: boolean
+}
+
 interface RankedEntry {
   entry: ProjectAnalysisEntry
   path: string
@@ -311,6 +315,7 @@ export async function analyzeProjectEntries(
   signal?: AbortSignal,
   collectionTruncated = false,
   collectionPartialReasons: readonly ProjectIndexPartialReason[] = [],
+  options: ProjectAnalysisOptions = {},
 ): Promise<ProjectContext> {
   const rankedFiles: RankedEntry[] = []
   let safeFileCount = 0
@@ -344,8 +349,11 @@ export async function analyzeProjectEntries(
   if (!accepted.length) throw new Error('No safe project files were found in that folder.')
 
   const rawPaths = accepted.map((entry) => entry.path)
-  const root = rootName(rawPaths)
-  const normalizedPaths = rawPaths.map((path) => pathWithoutRoot(path, root))
+  const stripCommonRoot = options.stripCommonRoot !== false
+  const root = stripCommonRoot ? rootName(rawPaths) : 'local-project'
+  const normalizedPaths = stripCommonRoot
+    ? rawPaths.map((path) => pathWithoutRoot(path, root))
+    : rawPaths
   const languageCounts = new Map<string, ProjectLanguage>()
 
   for (const path of normalizedPaths) {

@@ -337,6 +337,7 @@ export async function loadInProgressProject(
       signal,
       reachedHostLimit,
       partialReasons,
+      { stripCommonRoot: false },
     )
     client.setStatus({ state: 'idle', title: 'Prompt workspace ready' })
     return {

@@ -86,6 +86,60 @@ describe('in-progress project adapter', () => {
     expect(result.summary).toContain('indexed locally through the in-progress host')
   })
 
+  it('preserves the first directory of repository-relative host paths', async () => {
+    const contents: Record<string, string> = {
+      'src/package.json': JSON.stringify({ scripts: { test: 'vitest run' } }),
+      'src/AGENTS.md': '- Keep source changes scoped and verified.',
+      'src/main.ts': 'export const main = true',
+    }
+    const reads: string[] = []
+    const host = {
+      context: { project: { id: 'source-only' } },
+      async call(method: string, params?: { path?: string }) {
+        if (method === 'project.metadata') {
+          return {
+            id: 'source-only',
+            name: 'Source-only project',
+            displayPath: '/projects/source-only',
+            color: '#67d5b5',
+            branch: 'main',
+            available: true,
+          }
+        }
+        if (method === 'project.tree') {
+          return Object.entries(contents).map(([path, text]) => ({
+            path,
+            name: path.split('/').at(-1)!,
+            kind: 'file',
+            depth: 1,
+            size: text.length,
+          }))
+        }
+        if (method === 'project.readText' && params?.path) {
+          reads.push(params.path)
+          return { path: params.path, text: contents[params.path]!, truncated: false }
+        }
+        throw new Error(`Unexpected method: ${method}`)
+      },
+      setStatus() {},
+    } as unknown as InProgressHostClient
+
+    const result = await loadInProgressProject(host)
+
+    expect(reads).toEqual(['src/AGENTS.md'])
+    expect(result.files).toContainEqual({ path: 'src/main.ts', kind: 'source' })
+    expect(result.files).not.toContainEqual({ path: 'main.ts', kind: 'source' })
+    expect(result.instructions).toEqual([
+      {
+        text: 'Keep source changes scoped and verified.',
+        source: 'src/AGENTS.md',
+        scope: 'src',
+      },
+    ])
+    expect(result.scripts).toEqual([])
+    expect(result.manifests).toContain('src/package.json')
+  })
+
   it('fails closed when required host metadata is unavailable', async () => {
     const statuses: string[] = []
     const host = {
