@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url'
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const distributionRoot = join(repositoryRoot, 'dist')
 const manifestName = 'in-progress.plugin.json'
+const entry = 'index.html'
 const packageMetadata = JSON.parse(await readFile(join(repositoryRoot, 'package.json'), 'utf8'))
 if (typeof packageMetadata.version !== 'string' || !/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(packageMetadata.version)) {
   throw new Error('package.json version is not plugin-manifest compatible')
@@ -21,8 +22,18 @@ async function filesWithin(directory) {
 }
 
 const assets = (await filesWithin(distributionRoot))
-  .filter((path) => path !== 'index.html' && path !== manifestName)
+  .filter((path) => path !== entry && path !== manifestName)
   .sort()
+const html = await readFile(join(distributionRoot, entry), 'utf8')
+const markup = html
+  .replace(/(<script\b[^>]*>)[\s\S]*?<\/script>/gi, '$1</script>')
+  .replace(/(<style\b[^>]*>)[\s\S]*?<\/style>/gi, '$1</style>')
+const references = [...markup.matchAll(/\b(?:href|src)=["']([^"']+)["']/gi)].map((match) => match[1])
+if (assets.length > 0 || references.length > 0) {
+  throw new Error(
+    `Plugin entry must be self-contained; emitted ${assets.length} external assets and ${references.length} asset references`,
+  )
+}
 
 const manifest = {
   apiVersion: '1.0',
@@ -30,7 +41,7 @@ const manifest = {
   name: 'Turbo Prompt',
   version: packageMetadata.version,
   description: 'Project-aware prompt composer for coding agents',
-  entry: 'index.html',
+  entry,
   assets,
   icon: 'sparkles',
   capabilities: ['project.metadata', 'project.tree', 'project.readText'],

@@ -28,7 +28,7 @@ Open the shown local URL. The bundled demo is immediately interactive; choose th
 
 ## in-progress plugin
 
-`npm run build` emits a directly installable plugin in `dist/`. The generated `in-progress.plugin.json` contains the complete Vite asset allowlist; relative asset URLs keep the bundle valid below `/plugins/turbo-prompt/`.
+`npm run build` emits a directly installable plugin in `dist/`. `index.html` inlines its code, styles, and fonts so opaque-frame privacy/wallet extensions cannot strand the host handshake by blocking subresources; the generated `in-progress.plugin.json` therefore has an empty asset allowlist.
 
 ```json
 {
