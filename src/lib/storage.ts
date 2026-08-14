@@ -24,7 +24,8 @@ function hasUnsafeDisplayControls(value: string): boolean {
       (codePoint >= 0x200e && codePoint <= 0x200f) ||
       (codePoint >= 0x202a && codePoint <= 0x202e) ||
       (codePoint >= 0x2066 && codePoint <= 0x2069)
-    ) return true
+    )
+      return true
   }
   return false
 }
@@ -88,8 +89,7 @@ function isValues(value: unknown): value is PromptValues {
   return (
     entries.length <= 32 &&
     entries.every(
-      ([slotId, selection]) =>
-        /^[a-z][a-z0-9_-]{0,63}$/i.test(slotId) && isSelection(selection),
+      ([slotId, selection]) => /^[a-z][a-z0-9_-]{0,63}$/i.test(slotId) && isSelection(selection),
     )
   )
 }
@@ -131,9 +131,7 @@ function isProject(value: unknown): value is ProjectContext {
     ) &&
     Array.isArray(directories) &&
     directories.length <= 80 &&
-    directories.every(
-      (directory) => isString(directory, 4_096) && isSafeProjectPath(directory),
-    ) &&
+    directories.every((directory) => isString(directory, 4_096) && isSafeProjectPath(directory)) &&
     Array.isArray(languages) &&
     languages.length <= 100 &&
     languages.every(
@@ -172,9 +170,7 @@ function isProject(value: unknown): value is ProjectContext {
     ) &&
     Array.isArray(manifests) &&
     manifests.length <= 50 &&
-    manifests.every(
-      (manifest) => isString(manifest, 4_096) && isSafeProjectPath(manifest),
-    ) &&
+    manifests.every((manifest) => isString(manifest, 4_096) && isSafeProjectPath(manifest)) &&
     isDateString(value.indexedAt) &&
     typeof value.isDemo === 'boolean' &&
     (value.truncated === undefined || typeof value.truncated === 'boolean') &&
@@ -230,16 +226,16 @@ export function loadWorkspace(): StoredWorkspace | null {
           : `legacy-${String(recent.id).slice(0, 128)}`,
         text: hasStoredText
           ? recent.text
-          : typeof recent.preview === 'string' ? recent.preview : '',
+          : typeof recent.preview === 'string'
+            ? recent.preview
+            : '',
         textExact: hasStoredText
-          ? typeof recent.textExact === 'boolean' ? recent.textExact : true
+          ? typeof recent.textExact === 'boolean'
+            ? recent.textExact
+            : true
           : false,
-        projectId: isString(recent.projectId, 256)
-          ? recent.projectId
-          : project.id,
-        projectName: isString(recent.projectName, 512)
-          ? recent.projectName
-          : project.name,
+        projectId: isString(recent.projectId, 256) ? recent.projectId : project.id,
+        projectName: isString(recent.projectName, 512) ? recent.projectName : project.name,
       }
     })
     if (!recents.every(isRecent)) return null

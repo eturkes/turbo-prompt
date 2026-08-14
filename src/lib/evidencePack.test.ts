@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vite-plus/test'
 
 import type { ProjectContext, SlotSelection } from '../domain/types'
 import {
@@ -111,8 +111,12 @@ describe('project evidence packs', () => {
         selection: expect.objectContaining({ value: 'npm run check' }),
       }),
     ])
-    expect(pack?.proposals.every((proposal) => proposal.selection.value.length <= 16_384)).toBe(true)
-    expect(pack?.proposals.every((proposal) => proposal.selection.source.length <= 4_096)).toBe(true)
+    expect(pack?.proposals.every((proposal) => proposal.selection.value.length <= 16_384)).toBe(
+      true,
+    )
+    expect(pack?.proposals.every((proposal) => proposal.selection.source.length <= 4_096)).toBe(
+      true,
+    )
   })
 
   it('does not infer project evidence for an unknown custom area', () => {
@@ -157,15 +161,15 @@ describe('project evidence packs', () => {
       instructions: [],
     }
 
-    expect(relatedProjectFiles(monorepo, 'services/api/src/User.ts').map((file) => file.path)).toEqual(
-      expect.arrayContaining(['services/api/src/User.test.ts']),
-    )
-    expect(relatedProjectFiles(monorepo, 'services/api/src/User.ts').map((file) => file.path)).not.toEqual(
-      expect.arrayContaining(['services/web/src/User.test.ts', 'src/User.test.ts']),
-    )
-    expect(relatedProjectFiles(monorepo, 'services/api/src/api.ts').map((file) => file.path)).not.toContain(
-      'services/api/src/rapid.test.ts',
-    )
+    expect(
+      relatedProjectFiles(monorepo, 'services/api/src/User.ts').map((file) => file.path),
+    ).toEqual(expect.arrayContaining(['services/api/src/User.test.ts']))
+    expect(
+      relatedProjectFiles(monorepo, 'services/api/src/User.ts').map((file) => file.path),
+    ).not.toEqual(expect.arrayContaining(['services/web/src/User.test.ts', 'src/User.test.ts']))
+    expect(
+      relatedProjectFiles(monorepo, 'services/api/src/api.ts').map((file) => file.path),
+    ).not.toContain('services/api/src/rapid.test.ts')
     expect(
       relatedProjectFiles(monorepo, 'services/api/src/users/index.ts').map((file) => file.path),
     ).not.toContain('services/api/src/billing/index.test.ts')
@@ -199,8 +203,9 @@ describe('project evidence packs', () => {
       target,
     )
 
-    expect(pack?.proposals.find((proposal) => proposal.slotId === 'verification')?.selection.value)
-      .toBe('npm run build')
+    expect(
+      pack?.proposals.find((proposal) => proposal.slotId === 'verification')?.selection.value,
+    ).toBe('npm run build')
   })
 
   it('uses provenance-aware statuses and protects live custom or history wording', () => {

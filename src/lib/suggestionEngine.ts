@@ -17,15 +17,17 @@ import {
 type StaticSuggestion = Omit<Suggestion, 'kind' | 'score'>
 
 const staticSuggestions: Record<PromptSlot['kind'], StaticSuggestion[]> = {
-  action: ([
-    ['implement', 'Implement'],
-    ['fix', 'Fix'],
-    ['review', 'Review'],
-    ['refactor', 'Refactor'],
-    ['test', 'Test'],
-    ['document', 'Document'],
-    ['explain', 'Explain'],
-  ] as const).map(([id, value]) => ({
+  action: (
+    [
+      ['implement', 'Implement'],
+      ['fix', 'Fix'],
+      ['review', 'Review'],
+      ['refactor', 'Refactor'],
+      ['test', 'Test'],
+      ['document', 'Document'],
+      ['explain', 'Explain'],
+    ] as const
+  ).map(([id, value]) => ({
     id: `action-${id}`,
     label: value,
     value,
@@ -180,14 +182,15 @@ function projectSuggestions(
   project: ProjectContext,
   targetSelection?: SlotSelection,
 ): Suggestion[] {
-  const evidence = buildProjectEvidencePack(project, targetSelection)?.proposals
-    .filter((proposal) => proposal.slotId === slot.id)
-    .map<Suggestion>((proposal) => ({
-      ...proposal.selection,
-      kind: slot.kind,
-      detail: proposal.detail,
-      score: 190,
-    })) ?? []
+  const evidence =
+    buildProjectEvidencePack(project, targetSelection)
+      ?.proposals.filter((proposal) => proposal.slotId === slot.id)
+      .map<Suggestion>((proposal) => ({
+        ...proposal.selection,
+        kind: slot.kind,
+        detail: proposal.detail,
+        score: 190,
+      })) ?? []
 
   if (slot.kind === 'target') {
     const files = project.files.map((file, index) => ({
@@ -214,29 +217,37 @@ function projectSuggestions(
   }
 
   if (slot.kind === 'verification') {
-    return [...evidence, ...project.scripts.map((script, index) => ({
-      id: `project-script-${script.name}`,
-      kind: slot.kind,
-      label: script.command,
-      value: script.command,
-      detail: `${script.name} script`,
-      source: `${script.source} · script`,
-      origin: 'project' as const,
-      score: script.name === 'check' || script.name === 'test' ? 170 - index : 100 - index,
-    }))]
+    return [
+      ...evidence,
+      ...project.scripts.map((script, index) => ({
+        id: `project-script-${script.name}`,
+        kind: slot.kind,
+        label: script.command,
+        value: script.command,
+        detail: `${script.name} script`,
+        source: `${script.source} · script`,
+        origin: 'project' as const,
+        score: script.name === 'check' || script.name === 'test' ? 170 - index : 100 - index,
+      })),
+    ]
   }
 
   if (slot.kind === 'constraint') {
-    return [...evidence, ...applicableProjectInstructions(project, targetSelection?.value).map((instruction, index) => ({
-      id: `project-instruction-${index}`,
-      kind: slot.kind,
-      label: instruction.text,
-      value: instruction.text,
-      detail: 'Repository instruction',
-      source: instruction.source,
-      origin: 'project' as const,
-      score: 145 - index,
-    }))]
+    return [
+      ...evidence,
+      ...applicableProjectInstructions(project, targetSelection?.value).map(
+        (instruction, index) => ({
+          id: `project-instruction-${index}`,
+          kind: slot.kind,
+          label: instruction.text,
+          value: instruction.text,
+          detail: 'Repository instruction',
+          source: instruction.source,
+          origin: 'project' as const,
+          score: 145 - index,
+        }),
+      ),
+    ]
   }
 
   if (slot.kind === 'context') {
@@ -247,7 +258,10 @@ function projectSuggestions(
         id: 'project-context-instructions',
         kind: slot.kind,
         label: 'Project instructions',
-        value: `applicable project instructions in ${instructions.map((item) => item.source).filter((value, index, all) => all.indexOf(value) === index).join(' and ')}`,
+        value: `applicable project instructions in ${instructions
+          .map((item) => item.source)
+          .filter((value, index, all) => all.indexOf(value) === index)
+          .join(' and ')}`,
         detail: `${instructions.length} applicable instruction${instructions.length === 1 ? '' : 's'}`,
         source: instructions[0]!.source,
         origin: 'project',
@@ -260,7 +274,10 @@ function projectSuggestions(
         id: 'project-context-changed',
         kind: slot.kind,
         label: 'Recently changed files',
-        value: `the recently changed files ${changed.slice(0, 3).map((file) => file.path).join(', ')}`,
+        value: `the recently changed files ${changed
+          .slice(0, 3)
+          .map((file) => file.path)
+          .join(', ')}`,
         detail: `${changed.length} changed path${changed.length === 1 ? '' : 's'} in the project index`,
         source: 'Project index · changed files',
         origin: 'project',
@@ -341,10 +358,7 @@ export function isProjectSelectionStale(
   )
 }
 
-export function initialValuesFor(
-  template: PromptTemplate,
-  project: ProjectContext,
-): PromptValues {
+export function initialValuesFor(template: PromptTemplate, project: ProjectContext): PromptValues {
   return Object.fromEntries(
     template.slots.flatMap((slot) => {
       const preset = template.initialValues[slot.id]
@@ -352,16 +366,16 @@ export function initialValuesFor(
       if (preset.origin !== 'project') return [[slot.id, preset]]
 
       const suggestions = getSuggestions(slot, project)
-      const projectSuggestions = suggestions.filter(
-        (suggestion) => suggestion.origin === 'project',
-      )
+      const projectSuggestions = suggestions.filter((suggestion) => suggestion.origin === 'project')
       const resolved =
         projectSuggestions.find((suggestion) => suggestion.value === preset.value) ??
         (slot.kind === 'verification'
-          ? projectSuggestions.find((suggestion) => project.scripts.some(
-              (script) =>
-                script.command === suggestion.value && isRecommendedVerificationScript(script),
-            )) ?? suggestions.find((suggestion) => suggestion.origin === 'template')
+          ? (projectSuggestions.find((suggestion) =>
+              project.scripts.some(
+                (script) =>
+                  script.command === suggestion.value && isRecommendedVerificationScript(script),
+              ),
+            ) ?? suggestions.find((suggestion) => suggestion.origin === 'template'))
           : projectSuggestions[0])
       return resolved ? [[slot.id, toSelection(resolved)]] : []
     }),
@@ -372,7 +386,10 @@ export function customSuggestion(slot: PromptSlot, value: string): Suggestion {
   const normalizedValue = value.trim().slice(0, MAX_SELECTION_VALUE_LENGTH)
 
   return {
-    id: `custom-${slot.id}-${normalizedValue.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 40)}`,
+    id: `custom-${slot.id}-${normalizedValue
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .slice(0, 40)}`,
     kind: slot.kind,
     label: normalizedValue,
     value: normalizedValue,

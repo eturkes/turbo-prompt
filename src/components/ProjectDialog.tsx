@@ -1,4 +1,12 @@
-import { useEffect, useId, useRef, useState, type ChangeEvent, type DragEvent, type MouseEvent } from 'react'
+import {
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type ChangeEvent,
+  type DragEvent,
+  type MouseEvent,
+} from 'react'
 import { FolderOpen, RotateCcw, ShieldCheck, Trash2, Upload, X } from 'lucide-react'
 import { demoProject } from '../data/demoProject'
 import type { ProjectContext, ProjectIndexPartialReason } from '../domain/types'
@@ -53,7 +61,9 @@ interface PendingDroppedDirectory {
 function traversalPriority(path: string): number {
   if (!path) return -1_000
   const segments = path.toLowerCase().split('/')
-  if (segments.some((segment) => ['src', 'app', 'lib', 'packages', 'test', 'tests'].includes(segment))) {
+  if (
+    segments.some((segment) => ['src', 'app', 'lib', 'packages', 'test', 'tests'].includes(segment))
+  ) {
     return -100
   }
   if (segments.some((segment) => ['assets', 'images', 'public', 'static'].includes(segment))) {
@@ -392,9 +402,8 @@ export function ProjectDialog({
   useEffect(() => {
     if (!open) return
     const dialog = dialogRef.current
-    const previouslyFocused = document.activeElement instanceof HTMLElement
-      ? document.activeElement
-      : null
+    const previouslyFocused =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null
     if (!dialog) return
 
     if (typeof dialog.showModal === 'function') dialog.showModal()
@@ -541,7 +550,8 @@ export function ProjectDialog({
             <div>
               <h2 id={titleId}>Connect a project</h2>
               <p id={descriptionId}>
-                Index a folder to fill prompt fields with real paths, scripts, stack details, and repo guidance.
+                Index a folder to fill prompt fields with real paths, scripts, stack details, and
+                repo guidance.
               </p>
             </div>
           </div>
@@ -569,7 +579,9 @@ export function ProjectDialog({
           <div>
             <strong>Processed and stored locally</strong>
             <p>
-              Files stay on this device. Indexed paths, detected project details, repository-guidance excerpts, and prompt history persist when browser storage is available.
+              Files stay on this device. Indexed paths, detected project details,
+              repository-guidance excerpts, and prompt history persist when browser storage is
+              available.
             </p>
           </div>
         </div>
@@ -596,7 +608,11 @@ export function ProjectDialog({
               else openFolder()
             }}
           >
-            {isBusy ? <X size={17} aria-hidden="true" /> : <FolderOpen size={17} aria-hidden="true" />}
+            {isBusy ? (
+              <X size={17} aria-hidden="true" />
+            ) : (
+              <FolderOpen size={17} aria-hidden="true" />
+            )}
             {isBusy ? 'Cancel indexing' : 'Choose project folder'}
           </button>
           {supportsDirectoryPicker && !isBusy && (
@@ -622,7 +638,11 @@ export function ProjectDialog({
 
         <div className="project-dialog-feedback" aria-live="polite" aria-atomic="true">
           {status && <p className="project-index-status">{status}</p>}
-          {error && <p className="project-index-error" role="alert">{error}</p>}
+          {error && (
+            <p className="project-index-error" role="alert">
+              {error}
+            </p>
+          )}
         </div>
 
         <footer className="project-dialog-footer">
@@ -635,8 +655,7 @@ export function ProjectDialog({
                 if (confirmClear) {
                   setConfirmClear(false)
                   onClearWorkspace()
-                }
-                else setConfirmClear(true)
+                } else setConfirmClear(true)
               }}
               disabled={isBusy}
             >

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vite-plus/test'
 
 import { analyzeProjectEntries, analyzeProjectFiles, isSafeProjectPath } from './projectAnalyzer'
 
@@ -10,13 +10,12 @@ function syntheticFile(path: string, contents = ''): File {
 }
 
 describe('isSafeProjectPath', () => {
-  it.each([
-    'project/src/main.ts',
-    'project/.github/workflows/check.yml',
-    'README.md',
-  ])('accepts project-relative non-secret path %s', (path) => {
-    expect(isSafeProjectPath(path)).toBe(true)
-  })
+  it.each(['project/src/main.ts', 'project/.github/workflows/check.yml', 'README.md'])(
+    'accepts project-relative non-secret path %s',
+    (path) => {
+      expect(isSafeProjectPath(path)).toBe(true)
+    },
+  )
 
   it.each([
     '',
@@ -246,7 +245,10 @@ describe('analyzeProjectFiles', () => {
   it('samples file suggestions across distant monorepo scopes', async () => {
     const result = await analyzeProjectFiles([
       ...Array.from({ length: 130 }, (_, index) =>
-        syntheticFile(`workspace/packages/a/src/module-${String(index).padStart(3, '0')}.ts`, 'export {}'),
+        syntheticFile(
+          `workspace/packages/a/src/module-${String(index).padStart(3, '0')}.ts`,
+          'export {}',
+        ),
       ),
       syntheticFile('workspace/packages/z/src/critical.ts', 'export {}'),
     ])
@@ -282,7 +284,9 @@ describe('analyzeProjectFiles', () => {
   it('marks unreadable high-signal file contents as partial', async () => {
     const unreadableManifest = syntheticFile('workspace/package.json', '{}')
     Object.defineProperty(unreadableManifest, 'text', {
-      value: async () => { throw new Error('Permission denied') },
+      value: async () => {
+        throw new Error('Permission denied')
+      },
     })
     const result = await analyzeProjectFiles([
       unreadableManifest,
@@ -349,9 +353,7 @@ describe('analyzeProjectFiles', () => {
 
     expect(result.fileCount).toBe(1)
     expect(result.files).toEqual([{ path: 'src/main.py', kind: 'source' }])
-    expect(result.languages).toEqual([
-      { name: 'Python', count: 1, color: '#2563eb' },
-    ])
+    expect(result.languages).toEqual([{ name: 'Python', count: 1, color: '#2563eb' }])
   })
 
   it('rejects a selection containing no safe project files', async () => {

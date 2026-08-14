@@ -9,11 +9,7 @@ import {
   type Suggestion,
   type SuggestionOrigin,
 } from '../domain/types'
-import {
-  customSuggestion,
-  getSuggestions,
-  toSelection,
-} from '../lib/suggestionEngine'
+import { customSuggestion, getSuggestions, toSelection } from '../lib/suggestionEngine'
 
 const originLabels: Record<SuggestionOrigin, string> = {
   project: 'Project',
@@ -69,9 +65,7 @@ export function SuggestionMenu({
     return slot.kind === 'target' ? [...suggestions, custom] : [custom, ...suggestions]
   }, [project, query, slot, targetSelection])
 
-  const effectiveActiveIndex = options.length
-    ? Math.min(activeIndex, options.length - 1)
-    : -1
+  const effectiveActiveIndex = options.length ? Math.min(activeIndex, options.length - 1) : -1
   const activeOptionId =
     effectiveActiveIndex >= 0 ? `${id}-option-${effectiveActiveIndex}` : undefined
 
@@ -210,10 +204,7 @@ export function SuggestionMenu({
             >
               <span className="suggestion-menu__option-main">
                 <span className="suggestion-menu__option-label">{suggestion.label}</span>
-                <span
-                  className="suggestion-menu__option-origin"
-                  data-origin={suggestion.origin}
-                >
+                <span className="suggestion-menu__option-origin" data-origin={suggestion.origin}>
                   {originLabels[suggestion.origin]}
                 </span>
               </span>

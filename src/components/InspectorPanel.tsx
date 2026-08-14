@@ -13,12 +13,7 @@ import {
   ShieldCheck,
   Sparkles,
 } from 'lucide-react'
-import type {
-  CompiledPrompt,
-  ProjectContext,
-  PromptTemplate,
-  PromptValues,
-} from '../domain/types'
+import type { CompiledPrompt, ProjectContext, PromptTemplate, PromptValues } from '../domain/types'
 import {
   evidenceProposalStatus,
   type EvidencePackProposal,
@@ -66,7 +61,9 @@ export function InspectorPanel({
   const hasContext = template.slots.some((slot) => slot.kind === 'context')
   const hasVerification = template.slots.some((slot) => slot.kind === 'verification')
   const readinessChecks = [
-    ...(hasTarget ? [{ id: 'scope', ready: scopeAnchored, label: 'Scope is anchored to the active project' }] : []),
+    ...(hasTarget
+      ? [{ id: 'scope', ready: scopeAnchored, label: 'Scope is anchored to the active project' }]
+      : []),
     {
       id: 'required',
       ready: compiled.complete && staleCount === 0,
@@ -74,15 +71,26 @@ export function InspectorPanel({
         ? `${staleCount} project field${staleCount === 1 ? '' : 's'} need replacing`
         : 'All required fields are complete',
     },
-    ...(hasContext ? [{ id: 'context', ready: contextGrounded, label: 'Context uses project evidence' }] : []),
-    ...(hasVerification ? [{ id: 'verification', ready: verificationExplicit, label: 'Verification path is explicit' }] : []),
+    ...(hasContext
+      ? [{ id: 'context', ready: contextGrounded, label: 'Context uses project evidence' }]
+      : []),
+    ...(hasVerification
+      ? [
+          {
+            id: 'verification',
+            ready: verificationExplicit,
+            label: 'Verification path is explicit',
+          },
+        ]
+      : []),
   ]
   const readiness = Math.round(
     (readinessChecks.filter((check) => check.ready).length / readinessChecks.length) * 100,
   )
-  const evidenceProposals = evidencePack?.proposals.filter((proposal) =>
-    template.slots.some((slot) => slot.id === proposal.slotId),
-  ) ?? []
+  const evidenceProposals =
+    evidencePack?.proposals.filter((proposal) =>
+      template.slots.some((slot) => slot.id === proposal.slotId),
+    ) ?? []
   const availableEvidence = evidenceProposals.filter(
     (proposal) => evidenceProposalStatus(values[proposal.slotId], proposal) === 'available',
   )
@@ -118,7 +126,9 @@ export function InspectorPanel({
     <aside className="inspector-panel" aria-label="Prompt inspector">
       <div className="inspector-tabs" role="tablist" aria-label="Inspector view">
         <button
-          ref={(element) => { tabRefs.current[0] = element }}
+          ref={(element) => {
+            tabRefs.current[0] = element
+          }}
           type="button"
           role="tab"
           id={`${baseId}-preview-tab`}
@@ -132,7 +142,9 @@ export function InspectorPanel({
           Preview
         </button>
         <button
-          ref={(element) => { tabRefs.current[1] = element }}
+          ref={(element) => {
+            tabRefs.current[1] = element
+          }}
           type="button"
           role="tab"
           id={`${baseId}-context-tab`}
@@ -208,7 +220,10 @@ export function InspectorPanel({
 
           <div className="privacy-note">
             <ShieldCheck size={16} />
-            <span><strong>No network uploads.</strong> Project-derived text leaves the browser only when you copy it.</span>
+            <span>
+              <strong>No network uploads.</strong> Project-derived text leaves the browser only when
+              you copy it.
+            </span>
           </div>
         </div>
       ) : (
@@ -219,13 +234,16 @@ export function InspectorPanel({
           aria-labelledby={`${baseId}-context-tab`}
         >
           <section className="project-summary-card">
-            <div className="project-summary-icon"><FolderTree size={20} /></div>
+            <div className="project-summary-icon">
+              <FolderTree size={20} />
+            </div>
             <div>
               <span className="card-kicker">Active project</span>
               <h2>{project.name}</h2>
               <p>{project.summary}</p>
               <time className="project-index-age" dateTime={project.indexedAt}>
-                Indexed {relativeTime(project.indexedAt)}{relativeTime(project.indexedAt) === 'now' ? '' : ' ago'}
+                Indexed {relativeTime(project.indexedAt)}
+                {relativeTime(project.indexedAt) === 'now' ? '' : ' ago'}
               </time>
               {project.truncated ? (
                 <span className="project-index-warning">{partialIndexLabel}</span>
@@ -235,22 +253,29 @@ export function InspectorPanel({
 
           <section className="evidence-pack-section" aria-labelledby={`${baseId}-evidence-title`}>
             <div className="evidence-pack-heading">
-              <span className="evidence-pack-icon"><Sparkles size={16} /></span>
+              <span className="evidence-pack-icon">
+                <Sparkles size={16} />
+              </span>
               <div>
                 <span className="card-kicker">Target-linked evidence</span>
                 <h3 id={`${baseId}-evidence-title`}>Project evidence pack</h3>
               </div>
-              {evidencePack ? <span className="evidence-pack-count">{evidenceProposals.length}</span> : null}
+              {evidencePack ? (
+                <span className="evidence-pack-count">{evidenceProposals.length}</span>
+              ) : null}
             </div>
 
             {evidencePack ? (
               <>
-                <p className="evidence-pack-target">Built for <strong>{evidencePack.target}</strong></p>
+                <p className="evidence-pack-target">
+                  Built for <strong>{evidencePack.target}</strong>
+                </p>
                 {evidencePack.relatedFiles.length ? (
                   <div className="evidence-related-paths" aria-label="Related project paths">
                     {evidencePack.relatedFiles.map((file) => (
                       <span key={file.path} data-kind={file.kind}>
-                        <FileCheck2 size={12} />{file.path}
+                        <FileCheck2 size={12} />
+                        {file.path}
                       </span>
                     ))}
                   </div>
@@ -274,12 +299,16 @@ export function InspectorPanel({
                             {status === 'applied'
                               ? 'Applied'
                               : status === 'protected'
-                                ? current?.origin === 'recent' ? 'History kept' : 'Custom kept'
+                                ? current?.origin === 'recent'
+                                  ? 'History kept'
+                                  : 'Custom kept'
                                 : 'Use'}
                           </button>
                         </div>
                         <p>{proposal.selection.value}</p>
-                        <small>{proposal.detail} · {proposal.selection.source}</small>
+                        <small>
+                          {proposal.detail} · {proposal.selection.source}
+                        </small>
                       </li>
                     )
                   })}
@@ -299,27 +328,63 @@ export function InspectorPanel({
               </>
             ) : (
               <p className="evidence-pack-empty">
-                Choose a path from the active project to discover nearby tests, in-scope guidance, and a recommended check.
+                Choose a path from the active project to discover nearby tests, in-scope guidance,
+                and a recommended check.
               </p>
             )}
           </section>
 
           <section className="context-section">
-            <div className="panel-section-head"><span className="card-kicker">Detected stack</span></div>
+            <div className="panel-section-head">
+              <span className="card-kicker">Detected stack</span>
+            </div>
             <div className="stack-pills">
-              {project.frameworks.map((framework) => <span key={framework}><Code2 size={13} />{framework}</span>)}
-              {topLanguages.map((language) => <span key={language.name}><i style={{ background: language.color }} />{language.name}</span>)}
-              {project.packageManager && <span><PackageCheck size={13} />{project.packageManager}</span>}
+              {project.frameworks.map((framework) => (
+                <span key={framework}>
+                  <Code2 size={13} />
+                  {framework}
+                </span>
+              ))}
+              {topLanguages.map((language) => (
+                <span key={language.name}>
+                  <i style={{ background: language.color }} />
+                  {language.name}
+                </span>
+              ))}
+              {project.packageManager && (
+                <span>
+                  <PackageCheck size={13} />
+                  {project.packageManager}
+                </span>
+              )}
             </div>
           </section>
 
           <section className="context-section">
-            <div className="panel-section-head"><span className="card-kicker">Suggestion sources</span></div>
+            <div className="panel-section-head">
+              <span className="card-kicker">Suggestion sources</span>
+            </div>
             <ul className="source-list">
-              <li><Files size={15} /><span>Indexed files</span><strong>{project.fileCount}</strong></li>
-              <li><FileCode2 size={15} /><span>Project manifests</span><strong>{project.manifests.length}</strong></li>
-              <li><PackageCheck size={15} /><span>Runnable scripts</span><strong>{project.scripts.length}</strong></li>
-              <li><LockKeyhole size={15} /><span>Local instructions</span><strong>{project.instructions.length}</strong></li>
+              <li>
+                <Files size={15} />
+                <span>Indexed files</span>
+                <strong>{project.fileCount}</strong>
+              </li>
+              <li>
+                <FileCode2 size={15} />
+                <span>Project manifests</span>
+                <strong>{project.manifests.length}</strong>
+              </li>
+              <li>
+                <PackageCheck size={15} />
+                <span>Runnable scripts</span>
+                <strong>{project.scripts.length}</strong>
+              </li>
+              <li>
+                <LockKeyhole size={15} />
+                <span>Local instructions</span>
+                <strong>{project.instructions.length}</strong>
+              </li>
             </ul>
           </section>
 

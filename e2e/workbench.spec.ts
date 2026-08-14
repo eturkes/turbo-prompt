@@ -4,27 +4,39 @@ test.beforeEach(async ({ page }) => {
   await page.goto('/')
 })
 
-test('composes with project suggestions and custom wording, then copies plain text', async ({ page }) => {
-  await expect(page.getByRole('heading', { name: 'Shape the work before the agent starts.' })).toBeVisible()
+test('composes with project suggestions and custom wording, then copies plain text', async ({
+  page,
+}) => {
+  await expect(
+    page.getByRole('heading', { name: 'Shape the work before the agent starts.' }),
+  ).toBeVisible()
 
   await page.getByRole('button', { name: /^Target:/ }).click()
   const targetSearch = page.getByRole('combobox', { name: 'Search target suggestions' })
   await expect(targetSearch).toBeFocused()
   await targetSearch.fill('projectAnalyzer')
   await targetSearch.press('Enter')
-  await expect(page.getByRole('button', { name: /Target: src\/lib\/projectAnalyzer\.ts/ })).toBeVisible()
+  await expect(
+    page.getByRole('button', { name: /Target: src\/lib\/projectAnalyzer\.ts/ }),
+  ).toBeVisible()
 
   await page.getByRole('button', { name: /^Outcome:/ }).click()
   const outcomeSearch = page.getByRole('combobox', { name: 'Search outcome suggestions' })
   await outcomeSearch.fill('Mouse and keyboard completion')
   await outcomeSearch.press('Enter')
-  await expect(page.getByRole('button', { name: /Outcome: make every prompt field easy to complete with mouse or keyboard/ })).toBeVisible()
+  await expect(
+    page.getByRole('button', {
+      name: /Outcome: make every prompt field easy to complete with mouse or keyboard/,
+    }),
+  ).toBeVisible()
 
   await page.getByRole('button', { name: /^Guardrail:/ }).click()
   const guardrailSearch = page.getByRole('combobox', { name: 'Search guardrail suggestions' })
   await guardrailSearch.fill('avoid hidden network requests')
   await guardrailSearch.press('Enter')
-  await expect(page.getByRole('button', { name: /Guardrail: avoid hidden network requests/ })).toBeVisible()
+  await expect(
+    page.getByRole('button', { name: /Guardrail: avoid hidden network requests/ }),
+  ).toBeVisible()
 
   const copy = page.locator('.copy-prompt-button')
   await copy.click()
@@ -97,9 +109,9 @@ test('supports keyboard picker navigation and project connection dialog', async 
   await dialog.getByRole('button', { name: 'Clear saved data' }).click()
   await dialog.getByRole('button', { name: 'Confirm clear' }).click()
   await expect(dialog).toBeHidden()
-  await expect.poll(() =>
-    page.evaluate(() => window.localStorage.getItem('turbo-prompt:workspace:v1')),
-  ).toBeNull()
+  await expect
+    .poll(() => page.evaluate(() => window.localStorage.getItem('turbo-prompt:workspace:v1')))
+    .toBeNull()
 })
 
 test('keeps the core workflow within a narrow viewport', async ({ page }) => {
@@ -108,9 +120,13 @@ test('keeps the core workflow within a narrow viewport', async ({ page }) => {
     await page.reload()
     await expect(page.getByRole('button', { name: /^Target:/ })).toBeVisible()
     await expect(page.getByRole('button', { name: 'New prompt' })).toBeVisible()
-    await expect(page.getByRole('button', { name: /^Implement:/ })).toHaveAccessibleName(/Implement: Turn a product outcome/)
+    await expect(page.getByRole('button', { name: /^Implement:/ })).toHaveAccessibleName(
+      /Implement: Turn a product outcome/,
+    )
     await expect(page.getByRole('tab', { name: 'Preview' })).toBeVisible()
-    const overflows = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth)
+    const overflows = await page.evaluate(
+      () => document.documentElement.scrollWidth > window.innerWidth,
+    )
     expect(overflows).toBe(false)
     const fieldsStayInComposer = await page.evaluate(() => {
       const desktop = document.querySelector('.prompt-canvas')?.getBoundingClientRect()
@@ -121,10 +137,10 @@ test('keeps the core workflow within a narrow viewport', async ({ page }) => {
       )
       return Boolean(
         surface &&
-          fields.every((field) => {
-            const bounds = field.getBoundingClientRect()
-            return bounds.left >= surface.left - 1 && bounds.right <= surface.right + 1
-          }),
+        fields.every((field) => {
+          const bounds = field.getBoundingClientRect()
+          return bounds.left >= surface.left - 1 && bounds.right <= surface.right + 1
+        }),
       )
     })
     expect(fieldsStayInComposer).toBe(true)
@@ -140,14 +156,15 @@ test('keeps the core workflow within a narrow viewport', async ({ page }) => {
       await expect(page.locator('.prompt-canvas')).toBeHidden()
       await expect(page.getByRole('group', { name: 'Interactive prompt' })).toBeVisible()
       const targetValue = page.locator('.mobile-prompt-field .inline-field__value').nth(1)
-      expect(await targetValue.evaluate((element) => getComputedStyle(element).whiteSpace)).toBe('normal')
+      expect(await targetValue.evaluate((element) => getComputedStyle(element).whiteSpace)).toBe(
+        'normal',
+      )
       const actionField = page.locator('.mobile-prompt-field .inline-field__trigger').first()
       const actionCenterIsClear = await actionField.evaluate((element) => {
         const bounds = element.getBoundingClientRect()
-        return !document.elementFromPoint(
-          bounds.left + bounds.width / 2,
-          bounds.top + bounds.height / 2,
-        )?.closest('.mobile-action-bar')
+        return !document
+          .elementFromPoint(bounds.left + bounds.width / 2, bounds.top + bounds.height / 2)
+          ?.closest('.mobile-action-bar')
       })
       expect(actionCenterIsClear).toBe(true)
     }
@@ -172,11 +189,19 @@ test('builds a target-linked evidence pack without replacing custom wording', as
   const contextProposal = evidence.locator('li').filter({ hasText: 'Scope evidence' })
   await contextProposal.getByRole('button', { name: 'Use' }).click()
   await expect(contextProposal.getByRole('button', { name: 'Applied' })).toBeDisabled()
-  await expect(page.getByRole('button', { name: /Context: the implementation in src\/components\/PromptComposer\.tsx/ })).toBeVisible()
+  await expect(
+    page.getByRole('button', {
+      name: /Context: the implementation in src\/components\/PromptComposer\.tsx/,
+    }),
+  ).toBeVisible()
 
   await page.getByRole('tab', { name: 'Preview' }).click()
-  await expect(page.getByRole('progressbar', { name: 'Prompt quality signals: 100%' })).toHaveAttribute('value', '100')
-  await expect(page.getByRole('button', { name: /Guardrail: preserve my exact custom guardrail/ })).toBeVisible()
+  await expect(
+    page.getByRole('progressbar', { name: 'Prompt quality signals: 100%' }),
+  ).toHaveAttribute('value', '100')
+  await expect(
+    page.getByRole('button', { name: /Guardrail: preserve my exact custom guardrail/ }),
+  ).toBeVisible()
 
   await page.getByRole('button', { name: /^Target:/ }).click()
   const targetSearch = page.getByRole('combobox', { name: 'Search target suggestions' })
@@ -187,19 +212,27 @@ test('builds a target-linked evidence pack without replacing custom wording', as
 
   await page.getByRole('tab', { name: /Context/ }).click()
   await expect(evidence).toContainText('src/lib/projectAnalyzer.ts')
-  await evidence.locator('li').filter({ hasText: 'Scope evidence' }).getByRole('button', { name: 'Use' }).click()
+  await evidence
+    .locator('li')
+    .filter({ hasText: 'Scope evidence' })
+    .getByRole('button', { name: 'Use' })
+    .click()
   await page.getByRole('tab', { name: 'Preview' }).click()
   await expect(page.locator('.copy-prompt-button')).toBeEnabled()
 })
 
-test('uses exact custom wording on Enter without triggering the global copy shortcut', async ({ page }) => {
+test('uses exact custom wording on Enter without triggering the global copy shortcut', async ({
+  page,
+}) => {
   await page.addInitScript(() => {
     const writes: string[] = []
     Object.defineProperty(window, '__clipboardWrites', { configurable: true, value: writes })
     Object.defineProperty(navigator, 'clipboard', {
       configurable: true,
       value: {
-        writeText: async (value: string) => { writes.push(value) },
+        writeText: async (value: string) => {
+          writes.push(value)
+        },
         readText: async () => writes.at(-1) ?? '',
       },
     })
@@ -212,12 +245,20 @@ test('uses exact custom wording on Enter without triggering the global copy shor
   await outcomeSearch.press('Control+Enter')
 
   await expect(page.getByRole('button', { name: /Outcome: reliable/ })).toBeVisible()
-  expect(await page.evaluate(() => (window as typeof window & { __clipboardWrites: string[] }).__clipboardWrites)).toEqual([])
+  expect(
+    await page.evaluate(
+      () => (window as typeof window & { __clipboardWrites: string[] }).__clipboardWrites,
+    ),
+  ).toEqual([])
 
   await page.keyboard.press('Control+Enter')
-  await expect.poll(() => page.evaluate(
-    () => (window as typeof window & { __clipboardWrites: string[] }).__clipboardWrites.length,
-  )).toBe(1)
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () => (window as typeof window & { __clipboardWrites: string[] }).__clipboardWrites.length,
+      ),
+    )
+    .toBe(1)
 })
 
 test('salvages project context and history when a stored workflow is removed', async ({ page }) => {
@@ -227,28 +268,41 @@ test('salvages project context and history when a stored workflow is removed', a
     const stored = JSON.parse(window.localStorage.getItem(key)!)
     stored.templateId = 'removed-workflow'
     stored.project.name = 'retained-project'
-    stored.recents = [{
-      id: 'before-upgrade',
-      title: 'Saved before upgrade',
-      text: 'Preserve this prompt after a workflow change',
-      preview: 'Preserve this prompt after a workflow change',
-      templateId: 'implement',
-      projectId: stored.project.id,
-      projectName: stored.project.name,
-      values: stored.values,
-      createdAt: '2026-08-01T00:00:00.000Z',
-    }]
+    stored.recents = [
+      {
+        id: 'before-upgrade',
+        title: 'Saved before upgrade',
+        text: 'Preserve this prompt after a workflow change',
+        preview: 'Preserve this prompt after a workflow change',
+        templateId: 'implement',
+        projectId: stored.project.id,
+        projectName: stored.project.name,
+        values: stored.values,
+        createdAt: '2026-08-01T00:00:00.000Z',
+      },
+    ]
     window.localStorage.setItem(key, JSON.stringify(stored))
   })
   await page.reload()
 
   await expect(page.getByRole('button', { name: /Active project retained-project/ })).toBeVisible()
   await expect(page.getByRole('button', { name: /Saved before upgrade/ })).toBeVisible()
-  await expect(page.getByRole('button', { name: /^Implement:/ })).toHaveAttribute('aria-current', 'page')
-  await expect.poll(() => page.evaluate(() => {
-    const stored = JSON.parse(window.localStorage.getItem('turbo-prompt:workspace:v1')!)
-    return { templateId: stored.templateId, project: stored.project.name, recents: stored.recents.length }
-  })).toEqual({ templateId: 'implement', project: 'retained-project', recents: 1 })
+  await expect(page.getByRole('button', { name: /^Implement:/ })).toHaveAttribute(
+    'aria-current',
+    'page',
+  )
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const stored = JSON.parse(window.localStorage.getItem('turbo-prompt:workspace:v1')!)
+        return {
+          templateId: stored.templateId,
+          project: stored.project.name,
+          recents: stored.recents.length,
+        }
+      }),
+    )
+    .toEqual({ templateId: 'implement', project: 'retained-project', recents: 1 })
 })
 
 test('rejects corrupt persisted state and recovers with safe defaults', async ({ page }) => {
@@ -259,19 +313,25 @@ test('rejects corrupt persisted state and recovers with safe defaults', async ({
     stored.values.action.value = 42
     window.localStorage.setItem(key, JSON.stringify(stored))
   })
-  await expect.poll(() =>
-    page.evaluate(() => {
-      const stored = JSON.parse(window.localStorage.getItem('turbo-prompt:workspace:v1')!)
-      return stored.values.action.value
-    }),
-  ).toBe(42)
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const stored = JSON.parse(window.localStorage.getItem('turbo-prompt:workspace:v1')!)
+        return stored.values.action.value
+      }),
+    )
+    .toBe(42)
   await page.reload()
 
-  await expect(page.getByRole('heading', { name: 'Shape the work before the agent starts.' })).toBeVisible()
+  await expect(
+    page.getByRole('heading', { name: 'Shape the work before the agent starts.' }),
+  ).toBeVisible()
   await expect(page.getByRole('button', { name: /^Action: Implement/ })).toBeVisible()
 })
 
-test('blocks stale project values and resolves reset defaults from the active project', async ({ page }) => {
+test('blocks stale project values and resolves reset defaults from the active project', async ({
+  page,
+}) => {
   await page.getByRole('button', { name: /Active project turbo-prompt/ }).click()
   const dialog = page.getByRole('dialog', { name: 'Connect a project' })
   await dialog.locator('.project-folder-input').setInputFiles('e2e/fixtures/imported-app')
@@ -287,19 +347,33 @@ test('blocks stale project values and resolves reset defaults from the active pr
   await expect(page.locator('.copy-prompt-button')).toBeEnabled()
 })
 
-test('applies template defaults without losing custom values hidden by another template', async ({ page }) => {
+test('applies template defaults without losing custom values hidden by another template', async ({
+  page,
+}) => {
   await page.getByRole('button', { name: /^Action:/ }).click()
   const actionSearch = page.getByRole('combobox', { name: 'Search action suggestions' })
   await actionSearch.fill('Ship carefully')
   await actionSearch.press('Enter')
 
   await page.getByRole('button', { name: /^Review:/ }).click()
-  await expect(page.getByRole('button', { name: /Outcome: identify correctness, security, and maintainability risks/ })).toBeVisible()
-  await expect(page.getByRole('button', { name: /Return: prioritized findings with file references and open questions/ })).toBeVisible()
+  await expect(
+    page.getByRole('button', {
+      name: /Outcome: identify correctness, security, and maintainability risks/,
+    }),
+  ).toBeVisible()
+  await expect(
+    page.getByRole('button', {
+      name: /Return: prioritized findings with file references and open questions/,
+    }),
+  ).toBeVisible()
 
   await page.getByRole('button', { name: /^Implement:/ }).click()
   await expect(page.getByRole('button', { name: /Action: Ship carefully/ })).toBeVisible()
-  await expect(page.getByRole('button', { name: /Outcome: make every prompt field easy to complete with mouse or keyboard/ })).toBeVisible()
+  await expect(
+    page.getByRole('button', {
+      name: /Outcome: make every prompt field easy to complete with mouse or keyboard/,
+    }),
+  ).toBeVisible()
 })
 
 test('offers undo after reset or starting a new prompt', async ({ page }) => {
@@ -312,15 +386,22 @@ test('offers undo after reset or starting a new prompt', async ({ page }) => {
   await page.getByRole('button', { name: 'Undo' }).focus()
   await page.getByRole('button', { name: 'Undo' }).press('Enter')
   await expect(page.getByRole('button', { name: 'Reset' })).toBeFocused()
-  await expect(page.getByRole('button', { name: /Outcome: Respect the operator draft/ })).toBeVisible()
+  await expect(
+    page.getByRole('button', { name: /Outcome: Respect the operator draft/ }),
+  ).toBeVisible()
 
   await page.getByRole('button', { name: /^Review:/ }).click()
   await page.getByRole('button', { name: 'New prompt' }).click()
   await page.getByRole('button', { name: 'Undo' }).focus()
   await page.getByRole('button', { name: 'Undo' }).press('Enter')
   await expect(page.getByRole('button', { name: 'New prompt' })).toBeFocused()
-  await expect(page.getByRole('button', { name: /^Review:/ })).toHaveAttribute('aria-current', 'page')
-  await expect(page.getByRole('button', { name: /Outcome: Respect the operator draft/ })).toBeVisible()
+  await expect(page.getByRole('button', { name: /^Review:/ })).toHaveAttribute(
+    'aria-current',
+    'page',
+  )
+  await expect(
+    page.getByRole('button', { name: /Outcome: Respect the operator draft/ }),
+  ).toBeVisible()
 
   await page.getByRole('button', { name: 'Reset' }).click()
   await expect(page.getByRole('button', { name: 'Undo' })).toBeVisible()
@@ -336,7 +417,9 @@ test('offers undo after reset or starting a new prompt', async ({ page }) => {
   await expect(page.getByRole('button', { name: 'Reset' })).toBeFocused()
 })
 
-test('does not mark a newer draft copied when an older clipboard write resolves', async ({ page }) => {
+test('does not mark a newer draft copied when an older clipboard write resolves', async ({
+  page,
+}) => {
   await page.addInitScript(() => {
     Object.defineProperty(navigator, 'clipboard', {
       configurable: true,
@@ -355,14 +438,16 @@ test('does not mark a newer draft copied when an older clipboard write resolves'
   await page.reload()
 
   await page.locator('.copy-prompt-button').click()
-  await expect.poll(() =>
-    page.evaluate(() => {
-      const testWindow = window as typeof window & {
-        finishClipboardWrite?: () => void
-      }
-      return typeof testWindow.finishClipboardWrite
-    }),
-  ).toBe('function')
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const testWindow = window as typeof window & {
+          finishClipboardWrite?: () => void
+        }
+        return typeof testWindow.finishClipboardWrite
+      }),
+    )
+    .toBe('function')
 
   await page.getByRole('button', { name: /^Outcome:/ }).click()
   const outcomeSearch = page.getByRole('combobox', { name: 'Search outcome suggestions' })
@@ -382,10 +467,14 @@ test('does not mark a newer draft copied when an older clipboard write resolves'
 test('reopens an exact historical snapshot and restores it through undo', async ({ page }) => {
   await page.locator('.copy-prompt-button').click()
   await expect(page.getByRole('button', { name: 'Open prompt history, 1 entry' })).toBeVisible()
-  await expect.poll(() => page.evaluate(() => {
-    const stored = JSON.parse(window.localStorage.getItem('turbo-prompt:workspace:v1')!)
-    return stored.recents.length
-  })).toBe(1)
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const stored = JSON.parse(window.localStorage.getItem('turbo-prompt:workspace:v1')!)
+        return stored.recents.length
+      }),
+    )
+    .toBe(1)
   await page.evaluate(() => {
     const key = 'turbo-prompt:workspace:v1'
     const stored = JSON.parse(window.localStorage.getItem(key)!)
@@ -401,28 +490,38 @@ test('reopens an exact historical snapshot and restores it through undo', async 
   await page.getByRole('button', { name: 'Open prompt history, 1 entry' }).click()
   await page.locator('.history-entry').click()
   await expect(page.locator('.historical-draft-note')).toContainText('Copied-text snapshot')
-  await expect(page.locator('.compiled-prompt')).toHaveText('Exact prompt copied before this workflow evolved.')
+  await expect(page.locator('.compiled-prompt')).toHaveText(
+    'Exact prompt copied before this workflow evolved.',
+  )
 
   await page.getByRole('button', { name: 'Reset' }).click()
   await expect(page.locator('.historical-draft-note')).toBeHidden()
   await page.getByRole('button', { name: 'Undo' }).click()
   await expect(page.locator('.historical-draft-note')).toBeVisible()
-  await expect(page.locator('.compiled-prompt')).toHaveText('Exact prompt copied before this workflow evolved.')
+  await expect(page.locator('.compiled-prompt')).toHaveText(
+    'Exact prompt copied before this workflow evolved.',
+  )
 
   await page.getByRole('tab', { name: /Context/ }).click()
   await expect(page.getByRole('button', { name: 'History kept' }).first()).toBeDisabled()
   await page.getByRole('tab', { name: 'Preview' }).click()
   await page.locator('.copy-prompt-button').click()
-  await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toBe(
-    'Exact prompt copied before this workflow evolved.',
-  )
-  await expect.poll(() => page.evaluate(() => {
-    const stored = JSON.parse(window.localStorage.getItem('turbo-prompt:workspace:v1')!)
-    return stored.recents[0].projectName
-  })).toBe('source-project')
+  await expect
+    .poll(() => page.evaluate(() => navigator.clipboard.readText()))
+    .toBe('Exact prompt copied before this workflow evolved.')
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const stored = JSON.parse(window.localStorage.getItem('turbo-prompt:workspace:v1')!)
+        return stored.recents[0].projectName
+      }),
+    )
+    .toBe('source-project')
 })
 
-test('finds late source files without letting large sibling folders exhaust indexing', async ({ page }) => {
+test('finds late source files without letting large sibling folders exhaust indexing', async ({
+  page,
+}) => {
   await page.addInitScript(() => {
     interface FakeFileHandle {
       kind: 'file'
@@ -474,7 +573,8 @@ test('finds late source files without letting large sibling folders exhaust inde
   await page.reload()
 
   await page.getByRole('button', { name: /Active project turbo-prompt/ }).click()
-  await page.getByRole('dialog', { name: 'Connect a project' })
+  await page
+    .getByRole('dialog', { name: 'Connect a project' })
     .getByRole('button', { name: 'Choose project folder' })
     .click()
   await expect(page.getByRole('button', { name: /Active project fair-index/ })).toBeVisible()
@@ -502,26 +602,35 @@ test('keeps indexing when one project directory is unreadable', async ({ page })
       kind: 'directory',
       name: 'partial-project',
       entries: async function* () {
-        yield ['unreadable', {
-          kind: 'directory',
-          name: 'unreadable',
-          entries: async function* () {
-            const noEntries: Array<[string, FakeFileHandle | FakeDirectoryHandle]> = []
-            yield* noEntries
-            throw new Error('Permission denied')
+        yield [
+          'unreadable',
+          {
+            kind: 'directory',
+            name: 'unreadable',
+            entries: async function* () {
+              const noEntries: Array<[string, FakeFileHandle | FakeDirectoryHandle]> = []
+              yield* noEntries
+              throw new Error('Permission denied')
+            },
           },
-        }]
-        yield ['src', {
-          kind: 'directory',
-          name: 'src',
-          entries: async function* () {
-            yield ['main.ts', {
-              kind: 'file',
-              name: 'main.ts',
-              getFile: async () => new File(['export {}'], 'main.ts'),
-            }]
+        ]
+        yield [
+          'src',
+          {
+            kind: 'directory',
+            name: 'src',
+            entries: async function* () {
+              yield [
+                'main.ts',
+                {
+                  kind: 'file',
+                  name: 'main.ts',
+                  getFile: async () => new File(['export {}'], 'main.ts'),
+                },
+              ]
+            },
           },
-        }]
+        ]
       },
     }
     Object.defineProperty(window, 'showDirectoryPicker', {
@@ -532,7 +641,8 @@ test('keeps indexing when one project directory is unreadable', async ({ page })
   await page.reload()
 
   await page.getByRole('button', { name: /Active project turbo-prompt/ }).click()
-  await page.getByRole('dialog', { name: 'Connect a project' })
+  await page
+    .getByRole('dialog', { name: 'Connect a project' })
     .getByRole('button', { name: 'Choose project folder' })
     .click()
 
@@ -546,7 +656,9 @@ test('keeps indexing when one project directory is unreadable', async ({ page })
   await expect(page.locator('.suggestion-menu__option[title="src/main.ts"]')).toBeVisible()
 })
 
-test('runs as a host-bound in-progress plugin with mapped project context and theme', async ({ page }) => {
+test('runs as a host-bound in-progress plugin with mapped project context and theme', async ({
+  page,
+}) => {
   const pluginUrl = page.url()
   await page.route('**/assets/**', async (route) => {
     const response = await route.fetch()
@@ -655,7 +767,9 @@ test('runs as a host-bound in-progress plugin with mapped project context and th
   `)
 
   const plugin = page.frameLocator('#plugin')
-  await expect(plugin.getByRole('heading', { name: 'Shape the work before the agent starts.' })).toBeVisible()
+  await expect(
+    plugin.getByRole('heading', { name: 'Shape the work before the agent starts.' }),
+  ).toBeVisible()
   await expect(plugin.getByLabel('Host project: Embedded fixture')).toContainText('feature/plugin')
   await expect(plugin.getByRole('button', { name: /Target: src\/feature\.ts/ })).toBeVisible()
   await expect(plugin.getByRole('button', { name: /Verification: npm run check/ })).toBeVisible()
@@ -663,8 +777,8 @@ test('runs as a host-bound in-progress plugin with mapped project context and th
   await expect(plugin.locator('.local-badge')).toContainText('Host-bound · session history')
   expect(await plugin.locator('.brand').evaluate((element) => element.tagName)).toBe('DIV')
   expect(
-    await plugin.locator('html').evaluate((element) =>
-      getComputedStyle(element).getPropertyValue('--canvas').trim(),
-    ),
+    await plugin
+      .locator('html')
+      .evaluate((element) => getComputedStyle(element).getPropertyValue('--canvas').trim()),
   ).toBe('#0b0e14')
 })

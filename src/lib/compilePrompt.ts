@@ -1,9 +1,4 @@
-import type {
-  CompiledPrompt,
-  PromptSegment,
-  PromptTemplate,
-  PromptValues,
-} from '../domain/types'
+import type { CompiledPrompt, PromptSegment, PromptTemplate, PromptValues } from '../domain/types'
 import { validateTemplate } from './validateTemplate'
 
 function selectedValue(values: PromptValues, slotId: string): string {

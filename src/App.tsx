@@ -31,10 +31,7 @@ import {
   evidenceProposalStatus,
   type EvidencePackProposal,
 } from './lib/evidencePack'
-import {
-  initialValuesFor,
-  isProjectSelectionStale,
-} from './lib/suggestionEngine'
+import { initialValuesFor, isProjectSelectionStale } from './lib/suggestionEngine'
 import { promptFingerprint } from './lib/promptHistory'
 import { clearWorkspace, fitWorkspaceRecents, loadWorkspace, saveWorkspace } from './lib/storage'
 
@@ -48,9 +45,7 @@ function initialWorkspace(embeddedProject: ProjectContext | undefined) {
   const template = storedTemplate ?? defaultTemplate
   const project = embeddedProject ?? stored?.project ?? demoProject
   const values =
-    storedTemplate && stored?.values
-      ? stored.values
-      : initialValuesFor(template, project)
+    storedTemplate && stored?.values ? stored.values : initialValuesFor(template, project)
   return { template, project, values, recents: stored?.recents ?? [] }
 }
 
@@ -100,15 +95,16 @@ export default function App({ embeddedProject }: AppProps) {
   const skipNextWorkspaceSave = useRef(false)
   const liveCompiled = useMemo(() => compilePrompt(template, values), [template, values])
   const compiled = useMemo(
-    () => historicalText !== null
-      ? {
-          ...liveCompiled,
-          text: historicalText,
-          diagnostics: [],
-          filled: liveCompiled.total,
-          complete: true,
-        }
-      : liveCompiled,
+    () =>
+      historicalText !== null
+        ? {
+            ...liveCompiled,
+            text: historicalText,
+            diagnostics: [],
+            filled: liveCompiled.total,
+            complete: true,
+          }
+        : liveCompiled,
     [historicalText, liveCompiled],
   )
   const evidencePack = useMemo(
@@ -124,13 +120,14 @@ export default function App({ embeddedProject }: AppProps) {
   )
   const ready = compiled.complete && staleSlots.length === 0
   const persistableRecents = useMemo(
-    () => fitWorkspaceRecents({
-      schemaVersion: 1,
-      templateId: template.id,
-      values,
-      project,
-      recents,
-    }),
+    () =>
+      fitWorkspaceRecents({
+        schemaVersion: 1,
+        templateId: template.id,
+        values,
+        project,
+        recents,
+      }),
     [project, recents, template.id, values],
   )
 
@@ -149,11 +146,14 @@ export default function App({ embeddedProject }: AppProps) {
     })
   }, [embedded, persistableRecents, project, template.id, values])
 
-  useEffect(() => () => {
-    window.clearTimeout(noticeTimer.current)
-    window.clearTimeout(copyTimer.current)
-    copyOperation.current += 1
-  }, [])
+  useEffect(
+    () => () => {
+      window.clearTimeout(noticeTimer.current)
+      window.clearTimeout(copyTimer.current)
+      copyOperation.current += 1
+    },
+    [],
+  )
 
   const flash = (
     message: string,
@@ -200,9 +200,7 @@ export default function App({ embeddedProject }: AppProps) {
       for (const slot of next.slots) {
         const currentValue = current[slot.id]
         const value =
-          currentValue && currentValue.origin !== 'template'
-            ? currentValue
-            : defaults[slot.id]
+          currentValue && currentValue.origin !== 'template' ? currentValue : defaults[slot.id]
 
         if (value) nextValues[slot.id] = value
         else delete nextValues[slot.id]
@@ -332,18 +330,21 @@ export default function App({ embeddedProject }: AppProps) {
         values: copiedSnapshot.values,
         createdAt: new Date().toISOString(),
       }
-      const nextRecents = [
-        recent,
-        ...recents.filter((item) => item.text !== recent.text),
-      ].slice(0, 20)
+      const nextRecents = [recent, ...recents.filter((item) => item.text !== recent.text)].slice(
+        0,
+        20,
+      )
       setRecents(nextRecents)
-      if (embedded || !saveWorkspace({
-        schemaVersion: 1,
-        templateId: copiedSnapshot.template.id,
-        values: copiedSnapshot.values,
-        project: copiedSnapshot.project,
-        recents: nextRecents,
-      })) {
+      if (
+        embedded ||
+        !saveWorkspace({
+          schemaVersion: 1,
+          templateId: copiedSnapshot.template.id,
+          values: copiedSnapshot.values,
+          project: copiedSnapshot.project,
+          recents: nextRecents,
+        })
+      ) {
         flash('Copied; history is available for this session only')
       }
       copyTimer.current = window.setTimeout(() => {
@@ -435,7 +436,8 @@ export default function App({ embeddedProject }: AppProps) {
         target instanceof HTMLElement &&
         (target.matches('input, textarea, select, [contenteditable="true"]') ||
           target.closest('dialog'))
-      ) return
+      )
+        return
       const modifier = event.metaKey || event.ctrlKey
       if (modifier && event.key === 'Enter') {
         event.preventDefault()
@@ -448,12 +450,19 @@ export default function App({ embeddedProject }: AppProps) {
 
   const projectIdentity = (
     <>
-      <span className="project-folder"><FolderGit2 size={17} /></span>
+      <span className="project-folder">
+        <FolderGit2 size={17} />
+      </span>
       <span className="project-meta">
         <small>{embedded ? 'Host project' : 'Active project'}</small>
         <strong>{project.name}</strong>
       </span>
-      {project.branch && <span className="branch-label"><GitBranch size={12} />{project.branch}</span>}
+      {project.branch && (
+        <span className="branch-label">
+          <GitBranch size={12} />
+          {project.branch}
+        </span>
+      )}
       {project.isDemo && <span className="demo-label">Demo</span>}
       {!embedded && <ChevronDown size={14} className="switcher-chevron" />}
     </>
@@ -461,8 +470,12 @@ export default function App({ embeddedProject }: AppProps) {
 
   const brand = (
     <>
-      <span className="brand-mark"><ChevronsRight size={20} strokeWidth={2.4} /></span>
-      <span className="brand-name">turbo<span>prompt</span></span>
+      <span className="brand-mark">
+        <ChevronsRight size={20} strokeWidth={2.4} />
+      </span>
+      <span className="brand-name">
+        turbo<span>prompt</span>
+      </span>
     </>
   )
 
@@ -470,17 +483,28 @@ export default function App({ embeddedProject }: AppProps) {
     <div className="app-shell">
       <header className="topbar">
         {embedded ? (
-          <div className="brand" aria-label="Turbo Prompt home">{brand}</div>
+          <div className="brand" aria-label="Turbo Prompt home">
+            {brand}
+          </div>
         ) : (
-          <a className="brand" href="/" aria-label="Turbo Prompt home">{brand}</a>
+          <a className="brand" href="/" aria-label="Turbo Prompt home">
+            {brand}
+          </a>
         )}
 
         {embedded ? (
-          <div className="project-switcher is-host-bound" aria-label={`Host project: ${project.name}`}>
+          <div
+            className="project-switcher is-host-bound"
+            aria-label={`Host project: ${project.name}`}
+          >
             {projectIdentity}
           </div>
         ) : (
-          <button className="project-switcher" type="button" onClick={() => setProjectDialogOpen(true)}>
+          <button
+            className="project-switcher"
+            type="button"
+            onClick={() => setProjectDialogOpen(true)}
+          >
             {projectIdentity}
           </button>
         )}
@@ -496,7 +520,8 @@ export default function App({ embeddedProject }: AppProps) {
             {persistableRecents.length ? <span>{persistableRecents.length}</span> : null}
           </button>
           <span className="local-badge">
-            <CloudOff size={13} />{embedded ? 'Host-bound · session history' : 'Local only'}
+            <CloudOff size={13} />
+            {embedded ? 'Host-bound · session history' : 'Local only'}
           </span>
         </div>
       </header>
@@ -520,7 +545,10 @@ export default function App({ embeddedProject }: AppProps) {
           {historicalText !== null ? (
             <div className="historical-draft-note" role="status">
               <History size={15} aria-hidden="true" />
-              <span><strong>Copied-text snapshot.</strong> Preview and copy preserve the original; editing a field adopts the current workflow.</span>
+              <span>
+                <strong>Copied-text snapshot.</strong> Preview and copy preserve the original;
+                editing a field adopts the current workflow.
+              </span>
             </div>
           ) : null}
           <PromptComposer
@@ -543,23 +571,27 @@ export default function App({ embeddedProject }: AppProps) {
           staleCount={staleSlots.length}
           scopeAnchored={Boolean(
             values.target?.origin === 'project' &&
-              !template.slots.some(
-                (slot) => slot.id === 'target' && isProjectSelectionStale(slot, values.target, project, values.target),
-              ),
+            !template.slots.some(
+              (slot) =>
+                slot.id === 'target' &&
+                isProjectSelectionStale(slot, values.target, project, values.target),
+            ),
           )}
           contextGrounded={Boolean(
             values.context?.origin === 'project' &&
-              !template.slots.some(
-                (slot) => slot.id === 'context' && isProjectSelectionStale(slot, values.context, project, values.target),
-              ),
+            !template.slots.some(
+              (slot) =>
+                slot.id === 'context' &&
+                isProjectSelectionStale(slot, values.context, project, values.target),
+            ),
           )}
           verificationExplicit={Boolean(
             values.verification?.value.trim() &&
-              !template.slots.some(
-                (slot) =>
-                  slot.id === 'verification' &&
-                  isProjectSelectionStale(slot, values.verification, project, values.target),
-              ),
+            !template.slots.some(
+              (slot) =>
+                slot.id === 'verification' &&
+                isProjectSelectionStale(slot, values.verification, project, values.target),
+            ),
           )}
           onApplyEvidence={handleApplyEvidence}
           onCopy={() => void handleCopy()}
@@ -598,7 +630,9 @@ export default function App({ embeddedProject }: AppProps) {
         recents={persistableRecents}
         onClose={() => setHistoryOpen(false)}
         onSelect={handleRecent}
-        onDelete={(recent) => setRecents((current) => current.filter((item) => item.id !== recent.id))}
+        onDelete={(recent) =>
+          setRecents((current) => current.filter((item) => item.id !== recent.id))
+        }
         onClear={() => setRecents([])}
       />
 
@@ -606,8 +640,12 @@ export default function App({ embeddedProject }: AppProps) {
         <span>{notice}</span>
         {undoDraft ? (
           <>
-            <button type="button" onClick={handleUndo}>Undo</button>
-            <button type="button" onClick={handleDismissUndo}>Dismiss</button>
+            <button type="button" onClick={handleUndo}>
+              Undo
+            </button>
+            <button type="button" onClick={handleDismissUndo}>
+              Dismiss
+            </button>
           </>
         ) : null}
       </div>

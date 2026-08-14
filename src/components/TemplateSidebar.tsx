@@ -1,12 +1,4 @@
-import {
-  Bug,
-  FlaskConical,
-  History,
-  Layers3,
-  Plus,
-  Search,
-  Sparkles,
-} from 'lucide-react'
+import { Bug, FlaskConical, History, Layers3, Plus, Search, Sparkles } from 'lucide-react'
 import type { PromptTemplate, RecentPrompt } from '../domain/types'
 import { relativeTime } from '../lib/promptHistory'
 
@@ -64,7 +56,9 @@ export function TemplateSidebar({
                 aria-label={`${template.shortTitle}: ${template.description}`}
                 aria-current={selected ? 'page' : undefined}
               >
-                <span className="template-icon"><Icon size={16} /></span>
+                <span className="template-icon">
+                  <Icon size={16} />
+                </span>
                 <span>
                   <strong>{template.shortTitle}</strong>
                   <small>{template.description}</small>
@@ -83,17 +77,22 @@ export function TemplateSidebar({
         {recents.length ? (
           <div className="recent-list">
             {recents.slice(0, 3).map((recent) => (
-              <button type="button" className="recent-item" key={recent.id} onClick={() => onRecent(recent)}>
+              <button
+                type="button"
+                className="recent-item"
+                key={recent.id}
+                onClick={() => onRecent(recent)}
+              >
                 <span>{recent.title}</span>
-                <small>{recent.projectName} · {recent.preview}</small>
+                <small>
+                  {recent.projectName} · {recent.preview}
+                </small>
                 <time dateTime={recent.createdAt}>{relativeTime(recent.createdAt)}</time>
               </button>
             ))}
           </div>
         ) : (
-          <div className="recent-empty">
-            Copied prompts will appear here.
-          </div>
+          <div className="recent-empty">Copied prompts will appear here.</div>
         )}
       </div>
 

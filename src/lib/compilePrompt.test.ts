@@ -1,10 +1,6 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vite-plus/test'
 
-import type {
-  PromptTemplate,
-  PromptValues,
-  SlotSelection,
-} from '../domain/types'
+import type { PromptTemplate, PromptValues, SlotSelection } from '../domain/types'
 import { compilePrompt } from './compilePrompt'
 import { templates } from '../data/templates'
 import { validateTemplate } from './validateTemplate'

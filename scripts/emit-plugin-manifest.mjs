@@ -7,7 +7,10 @@ const distributionRoot = join(repositoryRoot, 'dist')
 const manifestName = 'in-progress.plugin.json'
 const entry = 'index.html'
 const packageMetadata = JSON.parse(await readFile(join(repositoryRoot, 'package.json'), 'utf8'))
-if (typeof packageMetadata.version !== 'string' || !/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(packageMetadata.version)) {
+if (
+  typeof packageMetadata.version !== 'string' ||
+  !/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(packageMetadata.version)
+) {
   throw new Error('package.json version is not plugin-manifest compatible')
 }
 
@@ -28,7 +31,9 @@ const html = await readFile(join(distributionRoot, entry), 'utf8')
 const markup = html
   .replace(/(<script\b[^>]*>)[\s\S]*?<\/script>/gi, '$1</script>')
   .replace(/(<style\b[^>]*>)[\s\S]*?<\/style>/gi, '$1</style>')
-const references = [...markup.matchAll(/\b(?:href|src)=["']([^"']+)["']/gi)].map((match) => match[1])
+const references = [...markup.matchAll(/\b(?:href|src)=["']([^"']+)["']/gi)].map(
+  (match) => match[1],
+)
 if (assets.length > 0 || references.length > 0) {
   throw new Error(
     `Plugin entry must be self-contained; emitted ${assets.length} external assets and ${references.length} asset references`,

@@ -27,9 +27,7 @@ export function validateTemplate(template: PromptTemplate): TemplateValidationIs
     slotIds.add(slot.id)
   }
 
-  const requiredIds = new Set(
-    template.slots.filter((slot) => slot.required).map((slot) => slot.id),
-  )
+  const requiredIds = new Set(template.slots.filter((slot) => slot.required).map((slot) => slot.id))
 
   const visit = (segments: PromptSegment[], path: string, guards: string[] = []) => {
     for (const [index, segment] of segments.entries()) {
@@ -56,11 +54,7 @@ export function validateTemplate(template: PromptTemplate): TemplateValidationIs
             })
           }
         }
-        visit(
-          segment.segments,
-          `${segmentPath}.segments`,
-          [...guards, ...segment.whenFilled],
-        )
+        visit(segment.segments, `${segmentPath}.segments`, [...guards, ...segment.whenFilled])
       }
     }
   }
@@ -68,12 +62,15 @@ export function validateTemplate(template: PromptTemplate): TemplateValidationIs
 
   for (const slot of template.slots) {
     if (slot.required && !referenced.has(slot.id)) {
-      issues.push({ path: `slots.${slot.id}`, message: `Required slot is not rendered: ${slot.id}` })
+      issues.push({
+        path: `slots.${slot.id}`,
+        message: `Required slot is not rendered: ${slot.id}`,
+      })
     } else if (
       slot.required &&
-      !referenceGuards.get(slot.id)?.some((guards) =>
-        guards.every((condition) => requiredIds.has(condition)),
-      )
+      !referenceGuards
+        .get(slot.id)
+        ?.some((guards) => guards.every((condition) => requiredIds.has(condition)))
     ) {
       issues.push({
         path: `slots.${slot.id}`,
@@ -93,7 +90,10 @@ export function validateTemplate(template: PromptTemplate): TemplateValidationIs
 
   for (const slotId of Object.keys(template.initialValues)) {
     if (!slotIds.has(slotId)) {
-      issues.push({ path: `initialValues.${slotId}`, message: `Initial value targets unknown slot: ${slotId}` })
+      issues.push({
+        path: `initialValues.${slotId}`,
+        message: `Initial value targets unknown slot: ${slotId}`,
+      })
     }
   }
 

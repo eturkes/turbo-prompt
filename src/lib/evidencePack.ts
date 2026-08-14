@@ -70,10 +70,7 @@ function workspaceBoundary(project: ProjectContext, path: string): string {
   const segments = pathSegments(path)
   const nestedManifestScope = project.manifests
     .map(directory)
-    .filter(
-      (scope) =>
-        scope && (path === scope || path.startsWith(`${scope}/`)),
-    )
+    .filter((scope) => scope && (path === scope || path.startsWith(`${scope}/`)))
     .sort((left, right) => pathSegments(right).length - pathSegments(left).length)[0]
   if (nestedManifestScope) return `manifest:${nestedManifestScope}`
   if (workspaceCollections.has((segments[0] ?? '').toLowerCase()) && segments[1]) {
@@ -82,7 +79,11 @@ function workspaceBoundary(project: ProjectContext, path: string): string {
   return 'root'
 }
 
-function relationScore(target: ProjectFile, candidate: ProjectFile, project: ProjectContext): number {
+function relationScore(
+  target: ProjectFile,
+  candidate: ProjectFile,
+  project: ProjectContext,
+): number {
   const targetStem = moduleStem(target.path)
   const candidateStem = moduleStem(candidate.path)
   const sharedDepth = commonDirectoryDepth(target.path, candidate.path)
@@ -104,11 +105,14 @@ function relationScore(target: ProjectFile, candidate: ProjectFile, project: Pro
   if (candidate.kind === 'test') {
     if (sameStem || relatedStem) score += target.kind === 'source' ? 55 : 22
     else score -= 30
-  }
-  else if (candidate.kind === 'source') score += 14
+  } else if (candidate.kind === 'source') score += 14
   else if (candidate.kind === 'config' && project.manifests.includes(candidate.path)) {
     const manifestScope = directory(candidate.path)
-    if (!manifestScope || target.path === manifestScope || target.path.startsWith(`${manifestScope}/`)) {
+    if (
+      !manifestScope ||
+      target.path === manifestScope ||
+      target.path.startsWith(`${manifestScope}/`)
+    ) {
       score += 24 + pathSegments(manifestScope).length * 12
     }
   }
@@ -129,8 +133,8 @@ export function applicableProjectInstructions(
     })
     .sort(
       (left, right) =>
-        pathSegments(right.instruction.scope).length - pathSegments(left.instruction.scope).length ||
-        left.index - right.index,
+        pathSegments(right.instruction.scope).length -
+          pathSegments(left.instruction.scope).length || left.index - right.index,
     )
     .map(({ instruction }) => instruction)
 }
@@ -147,15 +151,16 @@ export function relatedProjectFiles(
       .filter((file) => file.path.startsWith(`${targetPath}/`))
       .map((file) => {
         const relativeDepth = pathSegments(file.path.slice(targetPath.length + 1)).length
-        const kindSignal = file.kind === 'test'
-          ? 60
-          : file.kind === 'source'
-            ? 50
-            : file.kind === 'config' && project.manifests.includes(file.path)
-              ? 45
-              : file.kind === 'docs'
-                ? 5
-                : 0
+        const kindSignal =
+          file.kind === 'test'
+            ? 60
+            : file.kind === 'source'
+              ? 50
+              : file.kind === 'config' && project.manifests.includes(file.path)
+                ? 45
+                : file.kind === 'docs'
+                  ? 5
+                  : 0
         return { file, score: 180 - relativeDepth * 12 + kindSignal + (file.state ? 24 : 0) }
       })
       .filter(({ score }) => score >= 150)
@@ -238,16 +243,15 @@ function evidenceSource(sources: string[]): string {
   return result
 }
 
-function evidenceSelection(
-  slotId: EvidenceSlotId,
-  value: string,
-  source: string,
-): SlotSelection {
+function evidenceSelection(slotId: EvidenceSlotId, value: string, source: string): SlotSelection {
   const boundedValue = value.slice(0, MAX_SELECTION_VALUE_LENGTH)
   const boundedSelectionSource = boundedSource(source)
   const identity = stableHash(`${slotId}\u0000${value}\u0000${source}`)
   return {
-    id: `evidence-${slotId}-${boundedValue.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 36)}-${identity}`,
+    id: `evidence-${slotId}-${boundedValue
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .slice(0, 36)}-${identity}`,
     label: boundedValue,
     value: boundedValue,
     source: boundedSelectionSource,
@@ -266,7 +270,8 @@ export function evidenceProposalStatus(
     current?.origin === proposal.selection.origin &&
     current.value === proposal.selection.value &&
     current.source === proposal.selection.source
-  ) return 'applied'
+  )
+    return 'applied'
   return 'available'
 }
 
@@ -301,7 +306,8 @@ function contextValue(
       ? `the implementation in ${targetPath}`
       : `the project area ${targetPath}`,
   )
-  if (tests.length) pieces.push(`related coverage in ${tests.map((file) => file.path).join(' and ')}`)
+  if (tests.length)
+    pieces.push(`related coverage in ${tests.map((file) => file.path).join(' and ')}`)
   if (implementation.length) {
     pieces.push(`neighboring code in ${implementation.map((file) => file.path).join(' and ')}`)
   }
@@ -337,11 +343,7 @@ export function buildProjectEvidencePack(
       slotId: 'context',
       label: 'Scope evidence',
       detail: `${relatedFiles.length} related path${relatedFiles.length === 1 ? '' : 's'} · ${instructions.length} applicable rule${instructions.length === 1 ? '' : 's'}`,
-      selection: evidenceSelection(
-        'context',
-        context,
-        evidenceSource(sources),
-      ),
+      selection: evidenceSelection('context', context, evidenceSource(sources)),
     },
   ]
 

@@ -31,9 +31,8 @@ export function HistoryDialog({
   useEffect(() => {
     if (!open) return
     const dialog = dialogRef.current
-    const previouslyFocused = document.activeElement instanceof HTMLElement
-      ? document.activeElement
-      : null
+    const previouslyFocused =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null
     if (!dialog) return
 
     if (typeof dialog.showModal === 'function') dialog.showModal()
@@ -62,7 +61,8 @@ export function HistoryDialog({
       event.clientX > bounds.right ||
       event.clientY < bounds.top ||
       event.clientY > bounds.bottom
-    ) closeHistory()
+    )
+      closeHistory()
   }
 
   return (
@@ -80,10 +80,15 @@ export function HistoryDialog({
     >
       <div className="history-dialog-panel">
         <header className="history-dialog-header">
-          <span className="history-dialog-icon" aria-hidden="true"><History size={20} /></span>
+          <span className="history-dialog-icon" aria-hidden="true">
+            <History size={20} />
+          </span>
           <div>
             <h2 id={titleId}>Prompt history</h2>
-            <p id={descriptionId}>Reopen local copied prompts; persistence depends on browser storage. Legacy entries restore saved fields.</p>
+            <p id={descriptionId}>
+              Reopen local copied prompts; persistence depends on browser storage. Legacy entries
+              restore saved fields.
+            </p>
           </div>
           <button
             className="icon-button"
@@ -110,14 +115,19 @@ export function HistoryDialog({
                 >
                   <span className="history-entry-title">
                     <strong>{recent.title}</strong>
-                    <time dateTime={recent.createdAt}><Clock3 size={12} />{relativeTime(recent.createdAt)}</time>
+                    <time dateTime={recent.createdAt}>
+                      <Clock3 size={12} />
+                      {relativeTime(recent.createdAt)}
+                    </time>
                   </span>
                   <span className="history-entry-preview">{recent.preview}</span>
                   <small>{recent.projectName}</small>
                 </button>
                 <button
                   className="history-delete"
-                  ref={(element) => { deleteRefs.current[index] = element }}
+                  ref={(element) => {
+                    deleteRefs.current[index] = element
+                  }}
                   type="button"
                   aria-label={`Delete ${recent.title} for ${recent.projectName}: ${recent.preview}`}
                   onClick={() => {
@@ -144,7 +154,9 @@ export function HistoryDialog({
         )}
 
         <footer className="history-dialog-footer">
-          <span>{recents.length} prompt{recents.length === 1 ? '' : 's'} in history · local only</span>
+          <span>
+            {recents.length} prompt{recents.length === 1 ? '' : 's'} in history · local only
+          </span>
           {recents.length ? (
             <button
               className={confirmClear ? 'is-confirming' : ''}
@@ -157,7 +169,8 @@ export function HistoryDialog({
                 } else setConfirmClear(true)
               }}
             >
-              <Trash2 size={14} />{confirmClear ? 'Confirm clear' : 'Clear history'}
+              <Trash2 size={14} />
+              {confirmClear ? 'Confirm clear' : 'Clear history'}
             </button>
           ) : null}
         </footer>

@@ -27,7 +27,9 @@ async function start(): Promise<void> {
 
   render(
     <main className="embedded-bootstrap" role="status">
-      <span className="embedded-bootstrap-mark" aria-hidden="true">→</span>
+      <span className="embedded-bootstrap-mark" aria-hidden="true">
+        →
+      </span>
       <p>Connecting to in-progress…</p>
     </main>,
   )
@@ -38,14 +40,15 @@ async function start(): Promise<void> {
     const activeHost = host
     applyInProgressTheme(activeHost.context.theme)
     const project = await loadInProgressProject(activeHost)
-    window.addEventListener('pagehide', () => activeHost.dispose(), { once: true })
     render(<App embeddedProject={project} />)
   } catch (error) {
     host?.dispose()
     const message = error instanceof Error ? error.message : 'Embedded startup failed'
     render(
       <main className="embedded-bootstrap embedded-bootstrap-error" role="alert">
-        <span className="embedded-bootstrap-mark" aria-hidden="true">!</span>
+        <span className="embedded-bootstrap-mark" aria-hidden="true">
+          !
+        </span>
         <h1>Turbo Prompt is unavailable</h1>
         <p>{message}</p>
       </main>,

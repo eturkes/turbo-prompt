@@ -26,7 +26,8 @@ function hasUnsafeTextControls(value: string): boolean {
       (codePoint >= 0x200e && codePoint <= 0x200f) ||
       (codePoint >= 0x202a && codePoint <= 0x202e) ||
       (codePoint >= 0x2066 && codePoint <= 0x2069)
-    ) return true
+    )
+      return true
   }
   return false
 }
@@ -62,8 +63,10 @@ const ignoredSegments = new Set([
   'coverage',
   'target',
 ])
-const secretPattern = /(^|\/)(\.env(?:\..*)?|(?:credentials?|secrets?)(?:[-_.][^/]*)?|\.npmrc|\.pypirc|\.netrc|id_(?:rsa|dsa|ecdsa|ed25519)|[^/]+\.(?:pem|p12|pfx|key))$/i
-const secretDirectoryPattern = /^(?:\.aws|\.azure|\.gnupg|\.kube|\.ssh|(?:credentials?|secrets?)(?:[-_.][^/]*)?)$/i
+const secretPattern =
+  /(^|\/)(\.env(?:\..*)?|(?:credentials?|secrets?)(?:[-_.][^/]*)?|\.npmrc|\.pypirc|\.netrc|id_(?:rsa|dsa|ecdsa|ed25519)|[^/]+\.(?:pem|p12|pfx|key))$/i
+const secretDirectoryPattern =
+  /^(?:\.aws|\.azure|\.gnupg|\.kube|\.ssh|(?:credentials?|secrets?)(?:[-_.][^/]*)?)$/i
 
 const languagesByExtension: Record<string, { name: string; color: string }> = {
   ts: { name: 'TypeScript', color: '#4169e1' },
@@ -115,7 +118,8 @@ export function isSafeProjectPath(path: string): boolean {
     normalized.startsWith('/') ||
     /^[a-z]:\//i.test(normalized) ||
     segments.some((segment) => segment === '..')
-  ) return false
+  )
+    return false
   if (secretPattern.test(normalized)) return false
   if (segments.some((segment) => secretDirectoryPattern.test(segment))) return false
   return !segments.some((segment) => ignoredSegments.has(segment.toLowerCase()))
@@ -123,9 +127,15 @@ export function isSafeProjectPath(path: string): boolean {
 
 function fileKind(path: string): ProjectFile['kind'] {
   const lower = path.toLowerCase()
-  if (/(^|\/)(test|tests|spec|specs|__tests__)(\/|$)|\.(test|spec)\.[^.]+$/.test(lower)) return 'test'
+  if (/(^|\/)(test|tests|spec|specs|__tests__)(\/|$)|\.(test|spec)\.[^.]+$/.test(lower))
+    return 'test'
   if (/(^|\/)(readme|agents|claude|contributing)(\.|$)|\.(md|mdx)$/.test(lower)) return 'docs'
-  if (/(^|\/)(package\.json|cargo\.toml|pyproject\.toml|go\.mod|tsconfig[^/]*\.json|vite\.config\.)/.test(lower)) return 'config'
+  if (
+    /(^|\/)(package\.json|cargo\.toml|pyproject\.toml|go\.mod|tsconfig[^/]*\.json|vite\.config\.)/.test(
+      lower,
+    )
+  )
+    return 'config'
   const extension = lower.split('.').pop() ?? ''
   if (languagesByExtension[extension]) return 'source'
   return 'other'
@@ -134,7 +144,11 @@ function fileKind(path: string): ProjectFile['kind'] {
 function rootName(paths: string[]): string {
   const firstSegments = paths.map((path) => path.split('/')[0]).filter(Boolean)
   const first = firstSegments[0]
-  if (first && firstSegments.every((segment) => segment === first) && paths.some((path) => path.includes('/'))) {
+  if (
+    first &&
+    firstSegments.every((segment) => segment === first) &&
+    paths.some((path) => path.includes('/'))
+  ) {
     return first
   }
   return 'local-project'
@@ -145,7 +159,9 @@ function pathWithoutRoot(path: string, root: string): string {
 }
 
 function manifestName(path: string): boolean {
-  return /(^|\/)(package\.json|cargo\.toml|pyproject\.toml|go\.mod|composer\.json|gemfile|deno\.jsonc?|vite\.config\.[^/]+|tsconfig\.json)$/i.test(path)
+  return /(^|\/)(package\.json|cargo\.toml|pyproject\.toml|go\.mod|composer\.json|gemfile|deno\.jsonc?|vite\.config\.[^/]+|tsconfig\.json)$/i.test(
+    path,
+  )
 }
 
 function instructionName(path: string): boolean {
@@ -157,7 +173,8 @@ function retentionPriority(path: string): number {
     manifestName(path) ||
     instructionName(path) ||
     /(^|\/)(?:package-lock\.json|pnpm-lock\.yaml|yarn\.lock|bun\.lockb?)$/i.test(path)
-  ) return 0
+  )
+    return 0
   const kind = fileKind(path)
   if (kind === 'source') return 1
   if (kind === 'test') return 2
@@ -174,8 +191,9 @@ function evenlySample<T>(values: readonly T[], limit: number): T[] {
   if (values.length <= limit) return [...values]
   if (limit <= 0) return []
   if (limit === 1) return [values[0]!]
-  return Array.from({ length: limit }, (_, index) =>
-    values[Math.round((index * (values.length - 1)) / (limit - 1))]!,
+  return Array.from(
+    { length: limit },
+    (_, index) => values[Math.round((index * (values.length - 1)) / (limit - 1))]!,
   )
 }
 
@@ -207,10 +225,7 @@ export interface ProjectReadResult {
   truncated?: boolean
 }
 
-export type ProjectTextReader = (
-  path: string,
-  signal?: AbortSignal,
-) => Promise<ProjectReadResult>
+export type ProjectTextReader = (path: string, signal?: AbortSignal) => Promise<ProjectReadResult>
 
 export interface ProjectAnalysisOptions {
   stripCommonRoot?: boolean
@@ -247,14 +262,10 @@ function pushRankedFile(heap: RankedEntry[], candidate: RankedEntry): void {
     const left = index * 2 + 1
     const right = left + 1
     let worst = index
-    if (
-      left < heap.length &&
-      compareProjectPaths(heap[left]!.path, heap[worst]!.path) > 0
-    ) worst = left
-    if (
-      right < heap.length &&
-      compareProjectPaths(heap[right]!.path, heap[worst]!.path) > 0
-    ) worst = right
+    if (left < heap.length && compareProjectPaths(heap[left]!.path, heap[worst]!.path) > 0)
+      worst = left
+    if (right < heap.length && compareProjectPaths(heap[right]!.path, heap[worst]!.path) > 0)
+      worst = right
     if (worst === index) break
     swap(index, worst)
     index = worst
@@ -339,7 +350,7 @@ export async function analyzeProjectEntries(
   const reachedLimit = input.length > MAX_INPUT_PATHS || safeFileCount > MAX_FILES
   const partialReasonSet = new Set<ProjectIndexPartialReason>([
     ...collectionPartialReasons,
-    ...((reachedLimit || (collectionTruncated && !collectionPartialReasons.length))
+    ...(reachedLimit || (collectionTruncated && !collectionPartialReasons.length)
       ? ['limit' as const]
       : []),
   ])
@@ -373,11 +384,8 @@ export async function analyzeProjectEntries(
   let scripts: ProjectScript[] = []
   let dependencies: string[] = []
   if (packageFileIndex >= 0) {
-    const contents = await safeRead(
-      accepted[packageFileIndex]!,
-      readText,
-      signal,
-      (reason) => partialReasonSet.add(reason),
+    const contents = await safeRead(accepted[packageFileIndex]!, readText, signal, (reason) =>
+      partialReasonSet.add(reason),
     )
     try {
       const parsed = JSON.parse(contents) as {
@@ -398,13 +406,11 @@ export async function analyzeProjectEntries(
           .filter((entry): entry is [string, string] => typeof entry[1] === 'string')
           .filter(([name]) => safeScriptNamePattern.test(name))
         if (scriptEntries.length > 20) partialReasonSet.add('limit')
-        scripts = scriptEntries
-          .slice(0, 20)
-          .map(([name]) => ({
-            name,
-            command: `${detectPackageManager(normalizedPaths) ?? 'npm'} run ${name}`,
-            source: 'package.json',
-          }))
+        scripts = scriptEntries.slice(0, 20).map(([name]) => ({
+          name,
+          command: `${detectPackageManager(normalizedPaths) ?? 'npm'} run ${name}`,
+          source: 'package.json',
+        }))
       }
       dependencies = [
         ...Object.keys((parsed.dependencies as Record<string, unknown> | undefined) ?? {}),
@@ -444,13 +450,16 @@ export async function analyzeProjectEntries(
     ([, candidate]) => candidate,
   )
   const scopedInstructionBudget = 17
-  const sampledScopedInstructions = scopedByDirectory.length <= scopedInstructionBudget
-    ? scopedByDirectory
-    : Array.from({ length: scopedInstructionBudget }, (_, index) =>
-        scopedByDirectory[
-          Math.round((index * (scopedByDirectory.length - 1)) / (scopedInstructionBudget - 1))
-        ]!,
-      )
+  const sampledScopedInstructions =
+    scopedByDirectory.length <= scopedInstructionBudget
+      ? scopedByDirectory
+      : Array.from(
+          { length: scopedInstructionBudget },
+          (_, index) =>
+            scopedByDirectory[
+              Math.round((index * (scopedByDirectory.length - 1)) / (scopedInstructionBudget - 1))
+            ]!,
+        )
   const instructionFiles = [
     ...(rootInstruction ? [rootInstruction] : []),
     ...sampledScopedInstructions,
@@ -458,12 +467,7 @@ export async function analyzeProjectEntries(
   const instructionGroups = await Promise.all(
     instructionFiles.map(async ({ entry, source }) => {
       const scope = source.includes('/') ? source.slice(0, source.lastIndexOf('/')) : ''
-      const text = await safeRead(
-        entry,
-        readText,
-        signal,
-        (reason) => partialReasonSet.add(reason),
-      )
+      const text = await safeRead(entry, readText, signal, (reason) => partialReasonSet.add(reason))
       const lineBudget = scope ? 1 : 3
       const bulletLines = text
         .split(/\r?\n/)
@@ -494,7 +498,10 @@ export async function analyzeProjectEntries(
   }
   const rankedProjectFiles = normalizedPaths
     .map((path) => ({ path, kind: fileKind(path) }))
-    .sort((left, right) => priority(left.path) - priority(right.path) || left.path.localeCompare(right.path))
+    .sort(
+      (left, right) =>
+        priority(left.path) - priority(right.path) || left.path.localeCompare(right.path),
+    )
   const projectFiles = representativeProjectFiles(rankedProjectFiles, 120)
 
   const allDirectories = Array.from(
@@ -524,7 +531,8 @@ export async function analyzeProjectEntries(
     scopedByDirectory.length > sampledScopedInstructions.length ||
     instructionCandidates.length > Number(Boolean(rootInstruction)) + scopedByDirectory.length ||
     instructions.length < instructionGroups.flat().length
-  ) partialReasonSet.add('limit')
+  )
+    partialReasonSet.add('limit')
   const partialReasons = [...partialReasonSet]
   const truncated = collectionTruncated || reachedLimit || partialReasons.length > 0
 

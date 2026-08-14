@@ -1,9 +1,6 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vite-plus/test'
 
-import {
-  loadInProgressProject,
-  type InProgressHostClient,
-} from './inProgressHost'
+import { loadInProgressProject, type InProgressHostClient } from './inProgressHost'
 
 describe('in-progress project adapter', () => {
   it('derives a host-bound project while serializing bounded text reads', async () => {

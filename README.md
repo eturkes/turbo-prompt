@@ -17,18 +17,18 @@ Project files remain in the browser. The index skips dependency, Git, build, cac
 
 ## Run
 
-Requires Node 20.19+.
+Requires Node 24.11+ and pnpm 11.21+.
 
 ```sh
-npm install
-npm run dev
+pnpm install
+pnpm dev
 ```
 
 Open the shown local URL. The bundled demo is immediately interactive; choose the active project in the top bar to index another folder.
 
 ## in-progress plugin
 
-`npm run build` emits a directly installable plugin in `dist/`. `index.html` inlines its code, styles, and fonts so opaque-frame privacy/wallet extensions cannot strand the host handshake by blocking subresources; the generated `in-progress.plugin.json` therefore has an empty asset allowlist.
+`pnpm build` emits a directly installable plugin in `dist/`. `index.html` inlines its code, styles, and fonts. The generated `in-progress.plugin.json` has an empty asset allowlist.
 
 ```json
 {
@@ -47,11 +47,11 @@ The host chooses the active project, so embedded mode removes folder import and 
 ## Verify
 
 ```sh
-npm run check
-npm run test:e2e
+pnpm check
+pnpm test:e2e
 ```
 
-`check` runs lint, domain/security tests, type-checking, and a production build. Browser tests exercise that production build with the installed `chromiumfish` executable and cover evidence derivation/re-targeting, exact custom/history wording, keyboard clearing/navigation, focus transitions, shortcut races, delayed clipboard writes, resilient/adversarial folder traversal, malformed/legacy draft recovery, stale-project protection, lossless template changes, undo, layouts from 320 px through desktop, and the opaque-origin in-progress handshake/theme boundary.
+Vite+ runs formatting, type-aware linting, TypeScript Go checks, tests, and the production build. Browser tests use `chromiumfish` and cover the complete interaction and host-handshake boundary.
 
 ## Design
 
@@ -62,8 +62,8 @@ The core stays independent from React:
 - `src/lib/suggestionEngine.ts` - deterministic providers, filtering, ranking, deduplication
 - `src/lib/evidencePack.ts` - target-relative files, scoped instructions, verification + traceable proposals
 - `src/lib/projectAnalyzer.ts` - bounded, local folder metadata extraction
-- `src/lib/inProgressHost.ts` - audited API `1.0` wire client + host-tree analysis adapter
+- `src/lib/inProgressHost.ts` - shared API `1.0` client + host-tree analysis adapter
 - `src/lib/promptHistory.ts` - full-output identity + compact relative timestamps
 - `src/data/templates.ts` - built-in prompt workflows; add a template without changing the UI
 
-The app is a static Vite build. It has no server, account, telemetry, model dependency, or agent lock-in. Host RPC reads are serialized below in-progress request limits, validated at the boundary, and never request arbitrary source contents.
+The app is a static Vite+ build. It has no server, account, telemetry, model dependency, or agent lock-in. The shared protocol validates host RPC. Reads stay serialized below host limits.

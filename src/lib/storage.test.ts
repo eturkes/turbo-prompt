@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vite-plus/test'
 import { demoProject } from '../data/demoProject'
 import { defaultTemplate } from '../data/templates'
 import { MAX_SELECTION_VALUE_LENGTH, type RecentPrompt } from '../domain/types'
@@ -102,7 +102,9 @@ describe('workspace persistence', () => {
       }),
     )
 
-    expect(loadWorkspace()?.project.instructions.map(({ source, scope }) => ({ source, scope }))).toEqual([
+    expect(
+      loadWorkspace()?.project.instructions.map(({ source, scope }) => ({ source, scope })),
+    ).toEqual([
       { source: '.agent/memory.md', scope: '.agent' },
       { source: '.agent/memory.md', scope: '.agent' },
       { source: 'AGENTS.md', scope: '' },
@@ -118,11 +120,13 @@ describe('workspace persistence', () => {
         values: initialValuesFor(defaultTemplate, demoProject),
         project: {
           ...demoProject,
-          instructions: [{
-            text: 'Apply this only to the app package.',
-            source: 'packages/app/AGENTS.md',
-            scope: '',
-          }],
+          instructions: [
+            {
+              text: 'Apply this only to the app package.',
+              source: 'packages/app/AGENTS.md',
+              scope: '',
+            },
+          ],
         },
         recents: [],
       }),
@@ -161,7 +165,9 @@ describe('workspace persistence', () => {
       localStorage: {
         getItem: (name: string) => values.get(name) ?? null,
         setItem: (name: string, value: string) => values.set(name, value),
-        removeItem: () => { throw new Error('Storage blocked') },
+        removeItem: () => {
+          throw new Error('Storage blocked')
+        },
       },
     })
     values.set(key, '{}')
@@ -184,13 +190,16 @@ describe('workspace persistence', () => {
       values: initialValuesFor(defaultTemplate, demoProject),
       createdAt: '2026-07-17T00:00:00.000Z',
     }
-    values.set(key, JSON.stringify({
-      schemaVersion: 1,
-      templateId: defaultTemplate.id,
-      values: recent.values,
-      project: demoProject,
-      recents: [recent],
-    }))
+    values.set(
+      key,
+      JSON.stringify({
+        schemaVersion: 1,
+        templateId: defaultTemplate.id,
+        values: recent.values,
+        project: demoProject,
+        recents: [recent],
+      }),
+    )
 
     expect(loadWorkspace()?.recents[0]).toMatchObject({
       text: 'Only a preview survived',
@@ -200,18 +209,16 @@ describe('workspace persistence', () => {
 
   it('prunes oldest recents until every saved workspace is reloadable', () => {
     const largeValues = Object.fromEntries(
-      Object.entries(initialValuesFor(defaultTemplate, demoProject)).map(
-        ([slotId, selection]) => [
-          slotId,
-          selection
-            ? {
-                ...selection,
-                label: 'x'.repeat(MAX_SELECTION_VALUE_LENGTH),
-                value: 'x'.repeat(MAX_SELECTION_VALUE_LENGTH),
-              }
-            : selection,
-        ],
-      ),
+      Object.entries(initialValuesFor(defaultTemplate, demoProject)).map(([slotId, selection]) => [
+        slotId,
+        selection
+          ? {
+              ...selection,
+              label: 'x'.repeat(MAX_SELECTION_VALUE_LENGTH),
+              value: 'x'.repeat(MAX_SELECTION_VALUE_LENGTH),
+            }
+          : selection,
+      ]),
     )
     const recents: RecentPrompt[] = Array.from({ length: 6 }, (_, index) => ({
       id: `recent-${index}`,

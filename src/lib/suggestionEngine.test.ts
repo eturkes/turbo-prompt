@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vite-plus/test'
 
 import type { ProjectContext, PromptSlot } from '../domain/types'
 import {
@@ -86,8 +86,7 @@ describe('getSuggestions', () => {
   it('deduplicates equivalent values while preserving the project-derived item', () => {
     const duplicates = getSuggestions(targetSlot, project).filter(
       (suggestion) =>
-        suggestion.value.trim().toLowerCase() ===
-        'the most relevant implementation area',
+        suggestion.value.trim().toLowerCase() === 'the most relevant implementation area',
     )
 
     expect(duplicates).toHaveLength(1)
@@ -162,9 +161,12 @@ describe('getSuggestions', () => {
     )
 
     expect(suggestions.map((suggestion) => suggestion.value)).toEqual(['src/Foo.ts', 'src/foo.ts'])
-    expect(suggestions.every((suggestion) =>
-      !isProjectSelectionStale(targetSlot, toSelection(suggestion), caseSensitiveProject),
-    )).toBe(true)
+    expect(
+      suggestions.every(
+        (suggestion) =>
+          !isProjectSelectionStale(targetSlot, toSelection(suggestion), caseSensitiveProject),
+      ),
+    ).toBe(true)
   })
 
   it('invalidates equal instruction wording when its scoped source changes', () => {
@@ -176,20 +178,34 @@ describe('getSuggestions', () => {
       ],
       directories: ['packages/a', 'packages/a/src', 'packages/b', 'packages/b/src'],
       instructions: [
-        { text: 'Preserve the package contract.', source: 'packages/a/AGENTS.md', scope: 'packages/a' },
-        { text: 'Preserve the package contract.', source: 'packages/b/AGENTS.md', scope: 'packages/b' },
+        {
+          text: 'Preserve the package contract.',
+          source: 'packages/a/AGENTS.md',
+          scope: 'packages/a',
+        },
+        {
+          text: 'Preserve the package contract.',
+          source: 'packages/b/AGENTS.md',
+          scope: 'packages/b',
+        },
       ],
       manifests: [],
     }
-    const targetA = toSelection(getSuggestions(targetSlot, scopedProject).find(
-      (suggestion) => suggestion.value === 'packages/a/src/main.ts',
-    )!)
-    const targetB = toSelection(getSuggestions(targetSlot, scopedProject).find(
-      (suggestion) => suggestion.value === 'packages/b/src/main.ts',
-    )!)
-    const fromA = toSelection(getSuggestions(constraintSlot, scopedProject, '', targetA).find(
-      (suggestion) => suggestion.source === 'packages/a/AGENTS.md',
-    )!)
+    const targetA = toSelection(
+      getSuggestions(targetSlot, scopedProject).find(
+        (suggestion) => suggestion.value === 'packages/a/src/main.ts',
+      )!,
+    )
+    const targetB = toSelection(
+      getSuggestions(targetSlot, scopedProject).find(
+        (suggestion) => suggestion.value === 'packages/b/src/main.ts',
+      )!,
+    )
+    const fromA = toSelection(
+      getSuggestions(constraintSlot, scopedProject, '', targetA).find(
+        (suggestion) => suggestion.source === 'packages/a/AGENTS.md',
+      )!,
+    )
 
     expect(isProjectSelectionStale(constraintSlot, fromA, scopedProject, targetA)).toBe(false)
     expect(isProjectSelectionStale(constraintSlot, fromA, scopedProject, targetB)).toBe(true)
@@ -235,7 +251,10 @@ describe('customSuggestion', () => {
   })
 
   it('bounds pasted custom wording to the persistence contract', () => {
-    const suggestion = customSuggestion(targetSlot, `  ${'x'.repeat(MAX_SELECTION_VALUE_LENGTH + 9)}  `)
+    const suggestion = customSuggestion(
+      targetSlot,
+      `  ${'x'.repeat(MAX_SELECTION_VALUE_LENGTH + 9)}  `,
+    )
 
     expect(suggestion.value).toHaveLength(MAX_SELECTION_VALUE_LENGTH)
     expect(suggestion.label).toBe(suggestion.value)

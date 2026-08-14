@@ -1,11 +1,7 @@
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import { ChevronDown, X } from 'lucide-react'
 
-import type {
-  ProjectContext,
-  PromptSlot,
-  SlotSelection,
-} from '../domain/types'
+import type { ProjectContext, PromptSlot, SlotSelection } from '../domain/types'
 import { SuggestionMenu } from './SuggestionMenu'
 
 export interface InlineFieldProps {
@@ -59,9 +55,7 @@ export function InlineField({
   useLayoutEffect(() => {
     if (!isOpen || !rootRef.current) return
     const bounds = rootRef.current.getBoundingClientRect()
-    setPlacement(
-      window.innerHeight - bounds.bottom < 430 && bounds.top > 430 ? 'above' : 'below',
-    )
+    setPlacement(window.innerHeight - bounds.bottom < 430 && bounds.top > 430 ? 'above' : 'below')
     setAlignRight(bounds.left + 390 > window.innerWidth - 16)
   }, [isOpen])
 
@@ -72,9 +66,7 @@ export function InlineField({
           ? 'Selection no longer found in the current project.'
           : `Source: ${selection.source}.`
       } Open suggestions. Press Delete or Backspace to clear.`
-    : `${slot.label}: ${slot.placeholder}. Open suggestions.${
-        slot.required ? ' Required.' : ''
-      }`
+    : `${slot.label}: ${slot.placeholder}. Open suggestions.${slot.required ? ' Required.' : ''}`
 
   return (
     <span
@@ -106,7 +98,6 @@ export function InlineField({
         aria-haspopup="listbox"
         aria-expanded={isOpen}
         aria-controls={isOpen ? menuId : undefined}
-        aria-invalid={isStale || undefined}
         title={
           isStale
             ? 'Selection no longer found in the current project'
@@ -134,14 +125,10 @@ export function InlineField({
         }}
       >
         <span className="inline-field__label">{slot.label}</span>
-        <span
-          className={selection ? 'inline-field__value' : 'inline-field__placeholder'}
-        >
+        <span className={selection ? 'inline-field__value' : 'inline-field__placeholder'}>
           {selection?.value ?? slot.placeholder}
         </span>
-        {selection ? (
-          <span className="inline-field__provenance">{selection.source}</span>
-        ) : null}
+        {selection ? <span className="inline-field__provenance">{selection.source}</span> : null}
         {selection ? (
           <span className="inline-field__origin">
             {selection.origin === 'project'
