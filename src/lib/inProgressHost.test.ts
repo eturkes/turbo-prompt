@@ -1,8 +1,72 @@
-import { describe, expect, it } from 'vite-plus/test'
+import { afterEach, describe, expect, it, vi } from 'vite-plus/test'
 
-import { loadInProgressProject, type InProgressHostClient } from './inProgressHost'
+import {
+  applyInProgressTheme,
+  loadInProgressProject,
+  prepareInProgressTheme,
+  type InProgressHostClient,
+} from './inProgressHost'
+
+afterEach(() => vi.unstubAllGlobals())
 
 describe('in-progress project adapter', () => {
+  it('selects host fonts before the embedded handshake completes', () => {
+    const properties = new Map<string, string>()
+    prepareInProgressTheme({
+      style: {
+        setProperty(name: string, value: string) {
+          properties.set(name, value)
+        },
+      },
+    } as HTMLElement)
+    expect(properties.get('--ui-font')).toContain('Atkinson Hyperlegible Next')
+    expect(properties.get('--mono')).toContain('Iosevka')
+  })
+
+  it('maps the canonical host theme onto the embedded visual system', () => {
+    const properties = new Map<string, string>()
+    const root = {
+      dataset: {} as Record<string, string>,
+      style: {
+        colorScheme: '',
+        setProperty(name: string, value: string) {
+          properties.set(name, value)
+        },
+      },
+    }
+    vi.stubGlobal('document', {
+      documentElement: root,
+      querySelector: () => null,
+    })
+
+    applyInProgressTheme({
+      mode: 'dark',
+      tokens: {
+        accent: '#67d5b5',
+        background: '#0b0e14',
+        border: '#283142',
+        danger: '#ff6b78',
+        monoFont: 'Iosevka',
+        muted: '#909cb0',
+        radiusLarge: '14px',
+        radiusMedium: '10px',
+        radiusSmall: '6px',
+        surface: '#121722',
+        surfaceRaised: '#18202c',
+        text: '#e7ecf4',
+        uiFont: 'Atkinson Hyperlegible Next',
+        warning: '#f2b84b',
+      },
+    })
+
+    expect(root.dataset).toMatchObject({ inProgressEmbedded: 'true', theme: 'dark' })
+    expect(root.style.colorScheme).toBe('dark')
+    expect(properties.get('--host-background')).toBe('#0b0e14')
+    expect(properties.get('--canvas')).toBe('#0b0e14')
+    expect(properties.get('--radius-lg')).toBe('14px')
+    expect(properties.get('--ui-font')).toMatch(/^'Atkinson Hyperlegible Next'/)
+  })
+
   it('derives a host-bound project while serializing bounded text reads', async () => {
     const contents: Record<string, string> = {
       'package.json': JSON.stringify({

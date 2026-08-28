@@ -1,4 +1,5 @@
 import {
+  applyPluginTheme as applyProtocolTheme,
   connectInProgress as connectProtocol,
   type InProgressClient,
 } from '@in-progress/protocol/client'
@@ -21,6 +22,11 @@ export type InProgressHostClient = InProgressClient
 
 export function isEmbeddedFrame(): boolean {
   return window.parent !== window
+}
+
+export function prepareInProgressTheme(root: HTMLElement = document.documentElement): void {
+  root.style.setProperty('--ui-font', "'Atkinson Hyperlegible Next', sans-serif")
+  root.style.setProperty('--mono', "'Iosevka', monospace")
 }
 
 export function connectInProgress(timeoutMs = 10_000): Promise<InProgressClient> {
@@ -113,6 +119,7 @@ const themeColorTokens = [
 
 export function applyInProgressTheme(theme: PluginTheme): void {
   const root = document.documentElement
+  applyProtocolTheme(theme, root)
   const colors = Object.fromEntries(
     themeColorTokens.flatMap((name) => {
       const value = theme.tokens[name]
@@ -165,9 +172,17 @@ export function applyInProgressTheme(theme: PluginTheme): void {
   const uiFont = theme.tokens.uiFont
   const monoFont = theme.tokens.monoFont
   if (uiFont && /^[a-z0-9 _-]{1,80}$/i.test(uiFont)) {
-    set('--ui-font', `'${uiFont}', 'Instrument Sans Variable', sans-serif`)
+    set('--ui-font', `'${uiFont}', sans-serif`)
   }
   if (monoFont && /^[a-z0-9 _-]{1,80}$/i.test(monoFont)) {
     set('--mono', `'${monoFont}', monospace`)
+  }
+  for (const [token, property] of [
+    ['radiusSmall', '--radius-sm'],
+    ['radiusMedium', '--radius-md'],
+    ['radiusLarge', '--radius-lg'],
+  ] as const) {
+    const value = theme.tokens[token]
+    if (value && /^\d+(?:\.\d+)?(?:px|rem)$/.test(value)) set(property, value)
   }
 }

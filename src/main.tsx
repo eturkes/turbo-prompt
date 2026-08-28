@@ -9,6 +9,7 @@ import {
   connectInProgress,
   isEmbeddedFrame,
   loadInProgressProject,
+  prepareInProgressTheme,
   type InProgressHostClient,
 } from './lib/inProgressHost'
 import './styles.css'
@@ -24,6 +25,8 @@ async function start(): Promise<void> {
     render(<App />)
     return
   }
+
+  prepareInProgressTheme()
 
   render(
     <main className="embedded-bootstrap" role="status">

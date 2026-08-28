@@ -1,3 +1,19 @@
+@font-face {
+  font-family: 'Atkinson Hyperlegible Next';
+  font-style: normal;
+  font-weight: 200 800;
+  font-display: swap;
+  src: url('/plugin-theme/atkinson-hyperlegible-next.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Iosevka';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/plugin-theme/iosevka.woff2') format('woff2');
+}
+
 :root {
   font-family: var(--ui-font);
   color: var(--ink);
@@ -25,6 +41,9 @@
   --amber-soft: #fff4dd;
   --red: #b33d37;
   --mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Consolas, monospace;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
   --shadow-sm: 0 1px 2px rgb(24 26 23 / 5%), 0 3px 10px rgb(24 26 23 / 3%);
   --shadow-menu: 0 18px 48px rgb(24 26 23 / 15%), 0 4px 12px rgb(24 26 23 / 8%);
 }
@@ -2941,6 +2960,59 @@ kbd {
   .composer-heading p {
     display: none;
   }
+}
+
+:root[data-in-progress-embedded='true'] body,
+:root[data-in-progress-embedded='true'] .main-workspace {
+  background:
+    radial-gradient(
+      circle at 50% -14%,
+      color-mix(in srgb, var(--host-accent) 12%, transparent),
+      transparent 32rem
+    ),
+    var(--host-background);
+}
+
+:root[data-in-progress-embedded='true'] .topbar,
+:root[data-in-progress-embedded='true'] .template-sidebar,
+:root[data-in-progress-embedded='true'] .inspector-panel,
+:root[data-in-progress-embedded='true'] .composer-card-head,
+:root[data-in-progress-embedded='true'] .composer-card-foot,
+:root[data-in-progress-embedded='true'] .inspector-tabs {
+  border-color: var(--host-border);
+  background: color-mix(in srgb, var(--host-surface) 94%, transparent);
+}
+
+:root[data-in-progress-embedded='true'] .composer-card,
+:root[data-in-progress-embedded='true'] .project-summary-card,
+:root[data-in-progress-embedded='true'] .project-dialog,
+:root[data-in-progress-embedded='true'] .history-dialog {
+  border-color: var(--host-border);
+  border-radius: var(--radius-lg);
+  background: var(--host-surface);
+  color: var(--host-text);
+  box-shadow: 0 12px 32px color-mix(in srgb, var(--host-text) 8%, transparent);
+}
+
+:root[data-in-progress-embedded='true'] button,
+:root[data-in-progress-embedded='true'] input,
+:root[data-in-progress-embedded='true'] textarea,
+:root[data-in-progress-embedded='true'] .inline-field__trigger {
+  border-radius: var(--radius-sm);
+}
+
+:root[data-in-progress-embedded='true'] .project-switcher,
+:root[data-in-progress-embedded='true'] .project-folder,
+:root[data-in-progress-embedded='true'] .icon-button,
+:root[data-in-progress-embedded='true'] .quiet-button,
+:root[data-in-progress-embedded='true'] .template-item,
+:root[data-in-progress-embedded='true'] .suggestion-menu {
+  border-radius: var(--radius-md);
+}
+
+:root[data-in-progress-embedded='true'] .mobile-action-bar {
+  border-color: var(--host-border);
+  background: var(--host-surface-raised);
 }
 
 @media (prefers-reduced-motion: reduce) {
